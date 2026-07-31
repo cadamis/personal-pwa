@@ -20,6 +20,12 @@ export function useWakeLock(active: boolean) {
           sentinel.release()
           return
         }
+        // Clear our handle when the browser drops the lock on its own,
+        // otherwise the visibility handler below thinks one is still held and
+        // never re-requests.
+        sentinel.addEventListener('release', () => {
+          if (sentinelRef.current === sentinel) sentinelRef.current = null
+        })
         sentinelRef.current = sentinel
       } catch {
         // Rejected (power-save mode, low battery, etc.) — nothing to do.
