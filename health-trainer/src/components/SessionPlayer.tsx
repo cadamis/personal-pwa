@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   EXERCISES,
   SESSIONS,
+  findExercise,
   type Exercise,
   type ExerciseId,
   type Session,
@@ -56,9 +57,9 @@ function buildCircuitPlan(
   states: ProgressHook['state']['exerciseStates'],
 ): PlanStep[] {
   const resolved = session.exerciseIds.map(id => {
-    const ex = EXERCISES[id as ExerciseId]
+    const ex = EXERCISES[id]
     const info = resolveTarget(ex, states[id])
-    return { id: id as ExerciseId, ex, info }
+    return { id, ex, info }
   })
   const totalRounds = Math.max(...resolved.map(r => r.ex.sets))
 
@@ -80,7 +81,6 @@ function buildCircuitPlan(
   const plan: PlanStep[] = []
   for (let i = 0; i < exSteps.length; i++) {
     const step = exSteps[i]
-    if (!step) continue
     const prev = exSteps[i - 1]
     if (prev && step.setIndex > prev.setIndex) {
       plan.push({
@@ -100,12 +100,12 @@ function buildSequencePlan(
 ): PlanStep[] {
   const exSteps: ExerciseStep[] = []
   for (const id of session.exerciseIds) {
-    const ex = EXERCISES[id as ExerciseId]
+    const ex = EXERCISES[id]
     const info = resolveTarget(ex, states[id])
     for (let i = 0; i < ex.sets; i++) {
       exSteps.push({
         kind: 'exercise',
-        exerciseId: id as ExerciseId,
+        exerciseId: id,
         setIndex: i,
         totalSets: ex.sets,
         target: info.target,
@@ -117,7 +117,6 @@ function buildSequencePlan(
   const plan: PlanStep[] = []
   for (let i = 0; i < exSteps.length; i++) {
     const step = exSteps[i]
-    if (!step) continue
     plan.push(step)
     const next = exSteps[i + 1]
     if (!next) continue
@@ -766,7 +765,7 @@ function SessionSummary({
 
       <div className="mt-6 space-y-3">
         {results.map(r => {
-          const ex = EXERCISES[r.exerciseId as ExerciseId]
+          const ex = findExercise(r.exerciseId)
           return (
             <div key={r.exerciseId} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
               <div className="flex items-baseline justify-between">

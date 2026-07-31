@@ -72,9 +72,9 @@ function SessionCard({
   onStart: () => void
 }) {
   const resolved = session.exerciseIds.map(id => ({
-    id: id as ExerciseId,
-    ex: EXERCISES[id as ExerciseId] as Exercise,
-    info: resolveTarget(EXERCISES[id as ExerciseId] as Exercise, state.exerciseStates[id]),
+    id,
+    ex: EXERCISES[id],
+    info: resolveTarget(EXERCISES[id], state.exerciseStates[id]),
   }))
 
   return (

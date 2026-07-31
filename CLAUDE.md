@@ -14,6 +14,9 @@ These apply to every subdirectory, regardless of what kind of app it is
   ```json
   { "extends": "../tsconfig.base.json" }
   ```
+  See [Why the TS config looks like this](#why-the-ts-config-looks-like-this)
+  before adding compiler flags — some deliberately-omitted ones are omitted for
+  a reason.
 - **Build tool**: Vite, for every app. Build output must land in `dist/`
   (Vite's default) so [scripts/build-pages.mjs](scripts/build-pages.mjs) can
   find and publish it.
@@ -41,6 +44,36 @@ npm create vite@latest <app-name>
 
 Pick a template matching the framework decision above, then point its
 `tsconfig.json` at the shared base and confirm the build output is `dist/`.
+
+## Why the TS config looks like this
+
+This repo is maintained by AI coding agents rather than humans, so the test for
+any compiler flag is: **when it fires, does the cheapest way to satisfy it make
+the code safer, or merely quieter?** `strictNullChecks` forces you to handle the
+branch — safer. A rule you can silence with `as Foo` just moves the risk
+somewhere less visible while adding false confidence.
+
+Deliberately **not** enabled, don't re-add without a concrete reason:
+
+- **`noUncheckedIndexedAccess`** — measured against this codebase it produced
+  two unsafe `as Exercise` casts and four dead `if (!x) continue` guards on
+  bounded loops, against one genuine catch. Note it never applied to
+  `Record<FiniteUnion, T>` lookups anyway, so the safety it appeared to provide
+  really comes from typing lookup tables properly (see `ExerciseId` and
+  `findExercise` in [program.ts](health-trainer/src/data/program.ts)). Prefer
+  that: narrow the key type at the source, and widen in exactly one guarded
+  place when reading persisted data.
+- **`noUnusedLocals` / `noUnusedParameters`** — these fail the *build* over a
+  lint concern. An unused local never caused a runtime bug, but it does break
+  an agent mid-refactor the moment it comments a call out to test something.
+- **`exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`** — both
+  very noisy against React props, and both usually "fixed" with a cast.
+
+Kept on purpose: `strict` (the point of the exercise), `skipLibCheck` (stops
+agents burning turns on unfixable third-party `.d.ts` errors),
+`noFallthroughCasesInSwitch` (real bug class, near-zero false positives),
+`noImplicitOverride` (inert today, but Phaser games are class-heavy), and
+`allowJs` (lets an app convert to TS file-by-file instead of in one commit).
 
 ## Known exceptions
 

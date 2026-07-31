@@ -21,7 +21,9 @@ export interface Session {
   title: string
   subtitle: string
   minutes: number
-  exerciseIds: string[]
+  // Narrowed to the known exercise keys rather than plain strings, so
+  // EXERCISES[id] is total at every call site and needs no cast.
+  exerciseIds: ExerciseId[]
   meetingSafe: boolean
   format: SessionFormat
 }
@@ -243,6 +245,15 @@ export const EXERCISES = {
 } as const satisfies Record<string, Exercise>
 
 export type ExerciseId = keyof typeof EXERCISES
+
+// Exercise ids read back out of saved results are plain strings, not ExerciseId:
+// a stored session can reference an exercise that has since been renamed or
+// dropped. This is the single place that widening is allowed to happen, and it
+// returns `| undefined` so callers have to handle the miss rather than assert
+// it away.
+export function findExercise(id: string): Exercise | undefined {
+  return (EXERCISES as Record<string, Exercise>)[id]
+}
 
 export const SESSIONS: Session[] = [
   {

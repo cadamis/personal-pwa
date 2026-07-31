@@ -1,4 +1,4 @@
-import { EXERCISES, SESSIONS, type ExerciseId } from '../data/program'
+import { SESSIONS, findExercise } from '../data/program'
 import { currentProgramWeek } from '../lib/progression'
 import type { Completion, ProgressHook } from '../state/useProgress'
 
@@ -43,7 +43,7 @@ export default function History({ progress }: Props) {
                     <h3 className="font-medium text-white">{s?.title ?? c.sessionId}</h3>
                     <ul className="mt-2 space-y-1 text-sm text-slate-400">
                       {c.results.map(r => {
-                        const ex = EXERCISES[r.exerciseId as ExerciseId]
+                        const ex = findExercise(r.exerciseId)
                         return (
                           <li key={r.exerciseId} className="flex flex-wrap items-baseline gap-2">
                             <span className="text-slate-300">{ex?.name ?? r.exerciseId}:</span>
