@@ -1,17 +1,18 @@
 import { useState } from 'react'
-import HUD from './components/HUD.jsx'
-import NavTabs from './components/NavTabs.jsx'
-import GameCanvas from './components/GameCanvas.jsx'
-import MenuSummary from './components/MenuSummary.jsx'
-import InventoryPanel from './components/InventoryPanel.jsx'
-import MenuPanel from './components/MenuPanel.jsx'
-import OrderPanel from './components/OrderPanel.jsx'
-import HelpPanel from './components/HelpPanel.jsx'
-import { useGameStore } from './store/gameStore.js'
-import { useWakeLock } from './lib/wakeLock.js'
+import HUD from './components/HUD'
+import NavTabs from './components/NavTabs'
+import type { TabId } from './components/NavTabs'
+import GameCanvas from './components/GameCanvas'
+import MenuSummary from './components/MenuSummary'
+import InventoryPanel from './components/InventoryPanel'
+import MenuPanel from './components/MenuPanel'
+import OrderPanel from './components/OrderPanel'
+import HelpPanel from './components/HelpPanel'
+import { useGameStore } from './store/gameStore'
+import { useWakeLock } from './lib/wakeLock'
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('cafe')
+  const [activeTab, setActiveTab] = useState<TabId>('cafe')
   const resetSave = useGameStore(s => s.resetSave)
   const dayRunning = useGameStore(s => s.dayRunning)
 

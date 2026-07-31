@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { useGameStore } from '../store/gameStore.js'
-import { render } from '../game/renderer.js'
-import { tick } from '../game/gameLoop.js'
-import { CANVAS_W, CANVAS_H } from '../game/constants.js'
+import { useGameStore } from '../store/gameStore'
+import { render } from '../game/renderer'
+import { tick } from '../game/gameLoop'
+import { CANVAS_W, CANVAS_H } from '../game/constants'
 
 // Cap the backing store so a DPR-3 device doesn't allocate a needlessly huge
 // buffer. Beyond 2x the sharpness gain is imperceptible at this art style.
 const MAX_PIXEL_RATIO = 2
 
 export default function GameCanvas() {
-  const canvasRef = useRef(null)
-  const rafRef = useRef(null)
-  const lastTimeRef = useRef(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const rafRef = useRef<number | null>(null)
+  const lastTimeRef = useRef<number | null>(null)
 
   const [pixelRatio, setPixelRatio] = useState(
     () => Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO),
@@ -28,7 +28,7 @@ export default function GameCanvas() {
   useEffect(() => {
     const store = useGameStore
 
-    function loop(timestamp) {
+    function loop(timestamp: number) {
       if (lastTimeRef.current === null) {
         lastTimeRef.current = timestamp
       }
@@ -87,6 +87,7 @@ export default function GameCanvas() {
     }
 
     const ctx = canvas.getContext('2d')
+    if (!ctx) return
     // Resizing the canvas resets context state, so (re)apply the scale here.
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
 

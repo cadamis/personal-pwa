@@ -1,5 +1,5 @@
-import { useGameStore } from '../store/gameStore.js'
-import { MENU_CATEGORIES } from '../game/constants.js'
+import { useGameStore } from '../store/gameStore'
+import { MENU_CATEGORIES } from '../game/constants'
 
 const CATEGORY_ICON = {
   [MENU_CATEGORIES.HOT_TEA]:   '☕',
@@ -9,7 +9,7 @@ const CATEGORY_ICON = {
   [MENU_CATEGORIES.SWEET]:     '🍪',
 }
 
-function stockClass(stocked) {
+function stockClass(stocked: number): string {
   if (stocked === 0)  return 'empty'
   if (stocked <= 2)   return 'low'
   return 'ok'

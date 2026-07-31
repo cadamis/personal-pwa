@@ -1,9 +1,16 @@
 import { useState } from 'react'
-import { useGameStore } from '../store/gameStore.js'
-import { INGREDIENTS } from '../game/constants.js'
+import { useGameStore } from '../store/gameStore'
+import { INGREDIENTS } from '../game/constants'
+import type { IngredientCategory, IngredientEntry, IngredientId } from '../game/constants'
+
+/** One line in the "recent orders" feed. */
+interface OrderLogEntry {
+  id: number
+  text: string
+}
 
 // Bulk pricing: buy more, save more
-function getBulkPrice(costPerUnit, qty) {
+function getBulkPrice(costPerUnit: number, qty: number): number {
   if (qty >= 20) return costPerUnit * 0.80
   if (qty >= 10) return costPerUnit * 0.90
   return costPerUnit
@@ -16,9 +23,17 @@ const CATEGORY_LABELS = {
   baking: { label: 'Baking Staples',  icon: '🌾' },
   fruit:  { label: 'Fresh Fruits',    icon: '🍋' },
   spice:  { label: 'Spices & Herbs',  icon: '🌶️' },
-}
+} satisfies Record<IngredientCategory, { label: string; icon: string }>
 
-function OrderRow({ ing, currentStock, money, onOrder }) {
+// Fixed display order, and the source of truth for grouping below.
+const CATEGORY_ORDER = ['tea', 'dairy', 'sweet', 'baking', 'fruit', 'spice'] as const
+
+function OrderRow({ ing, currentStock, money, onOrder }: {
+  ing: IngredientEntry
+  currentStock: number
+  money: number
+  onOrder: (ingredientId: IngredientId, qty: number, totalCost: number) => void
+}) {
   const [qty, setQty] = useState(10)
   const [ordered, setOrdered] = useState(false)
 
@@ -93,9 +108,9 @@ export default function OrderPanel() {
   const dailyRevenue = useGameStore(s => s.dailyRevenue)
   const totalRevenue = useGameStore(s => s.totalRevenue)
 
-  const [orderLog, setOrderLog] = useState([])
+  const [orderLog, setOrderLog] = useState<OrderLogEntry[]>([])
 
-  function handleOrder(ingredientId, qty, totalCost) {
+  function handleOrder(ingredientId: IngredientId, qty: number, totalCost: number) {
     purchaseIngredients(ingredientId, qty, totalCost)
     const ing = INGREDIENTS[ingredientId]
     setOrderLog(prev => [
@@ -104,11 +119,9 @@ export default function OrderPanel() {
     ])
   }
 
-  const byCategory = {}
-  Object.values(INGREDIENTS).forEach(ing => {
-    if (!byCategory[ing.category]) byCategory[ing.category] = []
-    byCategory[ing.category].push(ing)
-  })
+  const grouped = CATEGORY_ORDER
+    .map(cat => ({ cat, items: Object.values(INGREDIENTS).filter(ing => ing.category === cat) }))
+    .filter(group => group.items.length > 0)
 
   return (
     <div className="panel order-panel">
@@ -138,8 +151,8 @@ export default function OrderPanel() {
       </div>
 
       <div className="order-categories">
-        {Object.entries(byCategory).map(([cat, items]) => {
-          const { label, icon } = CATEGORY_LABELS[cat] || { label: cat, icon: '•' }
+        {grouped.map(({ cat, items }) => {
+          const { label, icon } = CATEGORY_LABELS[cat]
           return (
             <div key={cat} className="order-category">
               <h3 className="order-category-title">{icon} {label}</h3>

@@ -1,17 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { tick } from '../game/gameLoop.js'
-import { GAME_CONFIG, GAME_SPEED, TABLE_POSITIONS, CUSTOMERS } from '../game/constants.js'
-import { MENU_CATEGORIES } from '../game/constants.js'
+import { tick } from '../game/gameLoop'
+import type { TickState, TickStore } from '../game/gameLoop'
+import type { OrderableItem } from '../game/customers'
+import type { AnimalKind, Customer, TableOccupancy } from '../game/constants'
+import { GAME_CONFIG, GAME_SPEED, TABLE_POSITIONS, CUSTOMERS } from '../game/constants'
+import { MENU_CATEGORIES } from '../game/constants'
 
 // ─── Minimal store mock ───────────────────────────────────────────────────────
 
-const DEFAULT_MENU = [
+const DEFAULT_MENU: TestMenuItem[] = [
   { id: 'blackTeaCup', name: 'Black Tea', emoji: '☕', category: MENU_CATEGORIES.HOT_TEA, price: 2.50, stocked: 8 },
   { id: 'scone',       name: 'Scone',     emoji: '🫓', category: MENU_CATEGORIES.PASTRY,   price: 3.50, stocked: 6 },
 ]
 
-function makeStore(overrides = {}) {
-  let state = {
+// `tick` is typed against the minimal slice of state it needs, so these
+// fixtures can stay lightweight — no full MenuItem or zustand store required.
+type TestMenuItem = OrderableItem
+type TestState = TickState<TestMenuItem> & { dayEnded: boolean }
+
+function makeStore(overrides: Partial<TestState> = {}) {
+  let state: TestState = {
     dayRunning: true,
     dayEnded: false,
     gameTime: GAME_CONFIG.START_HOUR * 60, // 480
@@ -23,6 +31,7 @@ function makeStore(overrides = {}) {
     menuItems: DEFAULT_MENU.map(m => ({ ...m })),
     lastSpawnTime: GAME_CONFIG.START_HOUR * 60,
     nextSpawnIn: 5, // spawn after 5 game-minutes
+    endDay: () => {},
     ...overrides,
   }
 
@@ -30,18 +39,22 @@ function makeStore(overrides = {}) {
     state = { ...state, dayRunning: false, dayEnded: true, customers: [], tableOccupancy: {} }
   })
 
-  const store = {
+  const store: TickStore<TestMenuItem> = {
     getState: () => ({ ...state, endDay }),
-    setState: vi.fn((partial) => {
+    setState: vi.fn((partial: Partial<TestState>) => {
       state = { ...state, ...partial }
     }),
   }
 
-  return { store, getState: () => state }
+  return { store, getState: () => state, endDay }
 }
 
 // Helper: advance time by N game-minutes in small steps
-function advanceGameMinutes(store, gameMinutes, stepMs = 16) {
+function advanceGameMinutes(
+  store: TickStore<TestMenuItem>,
+  gameMinutes: number,
+  stepMs = 16,
+) {
   const msPerGameMin = 1 / GAME_SPEED
   const totalMs = gameMinutes * msPerGameMin
   let elapsed = 0
@@ -59,7 +72,7 @@ describe('tick – time advancement', () => {
     const { store, getState } = makeStore()
     tick(16, store)
     expect(store.setState).toHaveBeenCalled()
-    const call = store.setState.mock.calls[store.setState.mock.calls.length - 1][0]
+    const call = vi.mocked(store.setState).mock.calls[vi.mocked(store.setState).mock.calls.length - 1][0]
     expect(call.gameTime).toBeGreaterThan(GAME_CONFIG.START_HOUR * 60)
   })
 
@@ -71,11 +84,10 @@ describe('tick – time advancement', () => {
 
   it('calls endDay when gameTime reaches END_HOUR * 60', () => {
     const endMin = GAME_CONFIG.END_HOUR * 60
-    const { store } = makeStore({ gameTime: endMin - 0.01 })
+    const { store, getState } = makeStore({ gameTime: endMin - 0.01 })
     tick(100, store)  // large delta to push past end
-    const state = store.getState()
-    expect(state.dayRunning).toBe(false)
-    expect(state.dayEnded).toBe(true)
+    expect(getState().dayRunning).toBe(false)
+    expect(getState().dayEnded).toBe(true)
   })
 
   it('does not advance time past END_HOUR', () => {
@@ -139,7 +151,7 @@ describe('tick – customer spawning', () => {
   })
 
   it('does not spawn if no free tables', () => {
-    const fullOccupancy = {}
+    const fullOccupancy: TableOccupancy = {}
     TABLE_POSITIONS.forEach(t => { fullOccupancy[t.id] = 'cust_dummy' })
     const { store, getState } = makeStore({ nextSpawnIn: 1, tableOccupancy: fullOccupancy })
     advanceGameMinutes(store, 3)
@@ -149,17 +161,21 @@ describe('tick – customer spawning', () => {
 
 // ─── Customer state machine ───────────────────────────────────────────────────
 
-function makeSeatedCustomer(animal = 'frog') {
+function makeSeatedCustomer(animal: AnimalKind = 'frog'): Customer {
   const patience = GAME_CONFIG.CUSTOMER_PATIENCE_MAX
   return {
     id: 'test_cust_1',
     name: 'Tester',
     animal,
     color: '#888',
+    preferredCategory: MENU_CATEGORIES.HOT_TEA,
+    budget: 'mid',
     mood: 'neutral',
     state: 'seated',
     x: TABLE_POSITIONS[0].x,
     y: TABLE_POSITIONS[0].y,
+    targetX: TABLE_POSITIONS[0].x,
+    targetY: TABLE_POSITIONS[0].y,
     tableId: 0,
     order: null,
     patience,
@@ -167,6 +183,14 @@ function makeSeatedCustomer(animal = 'frog') {
     serviceTimer: GAME_CONFIG.SERVICE_TIME,
     lingerTimer: 8,
   }
+}
+
+// Fixtures are fixed, so a missing item means the test itself is wrong —
+// fail loudly rather than propagating undefined into the assertion.
+function menuItem(state: TestState, id: string): TestMenuItem {
+  const item = state.menuItems.find(m => m.id === id)
+  if (!item) throw new Error(`test fixture has no menu item "${id}"`)
+  return item
 }
 
 describe('tick – customer state transitions', () => {
@@ -184,7 +208,7 @@ describe('tick – customer state transitions', () => {
   })
 
   it('waiting customer gets served after SERVICE_TIME game-minutes', () => {
-    const customer = {
+    const customer: Customer = {
       ...makeSeatedCustomer('ladybug'),
       state: 'waiting',
       order: { itemId: 'blackTeaCup', itemName: 'Black Tea', itemEmoji: '☕' },
@@ -206,7 +230,7 @@ describe('tick – customer state transitions', () => {
   })
 
   it('serving a customer decrements menu stock', () => {
-    const customer = {
+    const customer: Customer = {
       ...makeSeatedCustomer('ant'),
       state: 'waiting',
       order: { itemId: 'blackTeaCup', itemName: 'Black Tea', itemEmoji: '☕' },
@@ -217,9 +241,9 @@ describe('tick – customer state transitions', () => {
       tableOccupancy: { 0: customer.id },
       nextSpawnIn: 9999,
     })
-    const initialStock = getState().menuItems.find(m => m.id === 'blackTeaCup').stocked
+    const initialStock = menuItem(getState(), 'blackTeaCup').stocked
     advanceGameMinutes(store, GAME_CONFIG.SERVICE_TIME + 1)
-    const finalStock = getState().menuItems.find(m => m.id === 'blackTeaCup').stocked
+    const finalStock = menuItem(getState(), 'blackTeaCup').stocked
     expect(finalStock).toBe(initialStock - 1)
   })
 
@@ -241,7 +265,7 @@ describe('tick – customer state transitions', () => {
   })
 
   it('impatient customer eventually leaves', () => {
-    const customer = {
+    const customer: Customer = {
       ...makeSeatedCustomer('spider'),
       state: 'waiting',
       order: { itemId: 'blackTeaCup', itemName: 'Black Tea', itemEmoji: '☕' },
@@ -262,7 +286,7 @@ describe('tick – customer state transitions', () => {
   })
 
   it('leaving customer is eventually removed from the list', () => {
-    const customer = {
+    const customer: Customer = {
       ...makeSeatedCustomer('snake'),
       state: 'leaving',
       x: 400,
@@ -290,7 +314,7 @@ describe('tick – calls setState exactly once per frame', () => {
   })
 
   it('calls setState once even with multiple customers', () => {
-    const customers = [0, 1, 2].map(i => ({
+    const customers: Customer[] = [0, 1, 2].map(i => ({
       ...makeSeatedCustomer('frog'),
       id: `cust_${i}`,
       tableId: i,
@@ -311,28 +335,28 @@ describe('tick – state shape is valid after tick', () => {
   it('gameTime is a finite number after tick', () => {
     const { store } = makeStore()
     tick(16, store)
-    const written = store.setState.mock.calls[0][0]
+    const written = vi.mocked(store.setState).mock.calls[0][0]
     expect(Number.isFinite(written.gameTime)).toBe(true)
   })
 
   it('customers is always an array', () => {
     const { store } = makeStore()
     tick(16, store)
-    const written = store.setState.mock.calls[0][0]
+    const written = vi.mocked(store.setState).mock.calls[0][0]
     expect(Array.isArray(written.customers)).toBe(true)
   })
 
   it('money is always a finite number', () => {
     const { store } = makeStore()
     tick(16, store)
-    const written = store.setState.mock.calls[0][0]
+    const written = vi.mocked(store.setState).mock.calls[0][0]
     expect(Number.isFinite(written.money)).toBe(true)
   })
 
   it('tableOccupancy is always a plain object', () => {
     const { store } = makeStore()
     tick(16, store)
-    const written = store.setState.mock.calls[0][0]
+    const written = vi.mocked(store.setState).mock.calls[0][0]
     expect(typeof written.tableOccupancy).toBe('object')
     expect(Array.isArray(written.tableOccupancy)).toBe(false)
   })

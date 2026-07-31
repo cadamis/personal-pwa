@@ -1,56 +1,117 @@
 import { create } from 'zustand'
-import { DEFAULT_INGREDIENTS, DEFAULT_MENU_ITEMS, GAME_CONFIG } from '../game/constants.js'
+import {
+  DEFAULT_INGREDIENTS,
+  DEFAULT_MENU_ITEMS,
+  GAME_CONFIG,
+  ingredientEntries,
+} from '../game/constants'
+import type {
+  Customer,
+  IngredientId,
+  IngredientStock,
+  MenuItem,
+  TableOccupancy,
+  Transaction,
+} from '../game/constants'
 
 const SAVE_KEY = 'teabug-save'
 
-function buildDefaultMenu() {
+export interface GameState {
+  money: number
+  dayCount: number
+  /** Minutes since midnight. */
+  gameTime: number
+  dayRunning: boolean
+  dayEnded: boolean
+  ingredients: IngredientStock
+  menuItems: MenuItem[]
+  /** Customers currently on the canvas. Transient — never persisted. */
+  customers: Customer[]
+  dailyRevenue: number
+  totalRevenue: number
+  transactions: Transaction[]
+  lastSpawnTime: number
+  /** Game-minutes until the next customer arrives. */
+  nextSpawnIn: number
+  tableOccupancy: TableOccupancy
+}
+
+export type PrepResult =
+  | { success: true }
+  | { success: false; reason: string }
+
+export interface GameActions {
+  startDay: () => void
+  pauseDay: () => void
+  endDay: () => void
+  newDay: () => void
+  tickTime: (deltaGameMinutes: number) => void
+  addCustomer: (customer: Customer) => void
+  updateCustomer: (id: string, updates: Partial<Customer>) => void
+  removeCustomer: (id: string) => void
+  seatCustomer: (customerId: string, tableId: number) => void
+  serveCustomer: (customerId: string) => void
+  setNextSpawnIn: (minutes: number) => void
+  addIngredient: (ingredientId: IngredientId, qty: number) => void
+  purchaseIngredients: (ingredientId: IngredientId, qty: number, totalCost: number) => void
+  setMenuPrice: (itemId: string, price: number) => void
+  prepBatch: (itemId: string) => PrepResult
+  resetSave: () => void
+}
+
+export type GameStore = GameState & GameActions
+
+function buildDefaultMenu(): MenuItem[] {
   return DEFAULT_MENU_ITEMS.map(item => ({
     ...item,
     price: item.defaultPrice,
   }))
 }
 
-function getDefaultState() {
+function getDefaultState(): GameState {
   return {
     money: GAME_CONFIG.START_MONEY,
     dayCount: 1,
-    gameTime: GAME_CONFIG.START_HOUR * 60, // minutes since midnight
+    gameTime: GAME_CONFIG.START_HOUR * 60,
     dayRunning: false,
     dayEnded: false,
     ingredients: { ...DEFAULT_INGREDIENTS },
     menuItems: buildDefaultMenu(),
-    customers: [],          // active canvas customers
+    customers: [],
     dailyRevenue: 0,
     totalRevenue: 0,
-    transactions: [],       // { time, customerName, itemName, amount }
+    transactions: [],
     lastSpawnTime: GAME_CONFIG.START_HOUR * 60,
-    nextSpawnIn: 5,         // game-minutes until next spawn
-    tableOccupancy: {},     // tableId -> customerId
+    nextSpawnIn: 5,
+    tableOccupancy: {},
   }
 }
 
-function loadSave() {
+// A save is untyped JSON that may predate the current shape, so it's treated as
+// a partial overlay on the defaults. This is the only place that assumption is
+// made; everything downstream works with a complete GameState.
+function loadSave(): Partial<GameState> | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY)
     if (!raw) return null
-    return JSON.parse(raw)
+    return JSON.parse(raw) as Partial<GameState>
   } catch {
     return null
   }
 }
 
-function saveToDisk(state) {
-  const { customers, ...rest } = state
-  // Don't save live customer state (transient), reset on load
+function saveToDisk(state: GameState): void {
+  // Live customers and seating are transient, so they're reset rather than saved.
+  const { customers: _customers, ...rest } = state
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({ ...rest, customers: [], tableOccupancy: {} }))
   } catch { /* storage full */ }
 }
 
 const saved = loadSave()
-const initial = saved ? { ...getDefaultState(), ...saved } : getDefaultState()
+const initial: GameState = saved ? { ...getDefaultState(), ...saved } : getDefaultState()
 
-export const useGameStore = create((set, get) => ({
+export const useGameStore = create<GameStore>()((set, get) => ({
   ...initial,
 
   // ─── Time & Day ──────────────────────────────────────────────────────────────
@@ -79,7 +140,7 @@ export const useGameStore = create((set, get) => ({
 
   newDay: () => {
     const state = get()
-    const next = {
+    const next: GameState = {
       ...getDefaultState(),
       // carry over money, inventory, menu settings, revenue totals
       money: state.money,
@@ -124,7 +185,8 @@ export const useGameStore = create((set, get) => ({
     set(s => {
       const customer = s.customers.find(c => c.id === id)
       const newOccupancy = { ...s.tableOccupancy }
-      if (customer?.tableId !== undefined) delete newOccupancy[customer.tableId]
+      // An un-seated customer has tableId null, which is not a table to free.
+      if (customer && customer.tableId !== null) delete newOccupancy[customer.tableId]
       return {
         customers: s.customers.filter(c => c.id !== id),
         tableOccupancy: newOccupancy,
@@ -144,7 +206,8 @@ export const useGameStore = create((set, get) => ({
     const customer = state.customers.find(c => c.id === customerId)
     if (!customer || !customer.order) return
 
-    const menuItem = state.menuItems.find(m => m.id === customer.order.itemId)
+    const order = customer.order
+    const menuItem = state.menuItems.find(m => m.id === order.itemId)
     if (!menuItem || menuItem.stocked < 1) {
       // Item unavailable, customer leaves unhappy
       get().updateCustomer(customerId, { state: 'leaving', mood: 'unhappy' })
@@ -152,7 +215,7 @@ export const useGameStore = create((set, get) => ({
     }
 
     const price = menuItem.price
-    const transaction = {
+    const transaction: Transaction = {
       time: state.gameTime,
       customerName: customer.name,
       itemName: menuItem.name,
@@ -216,14 +279,14 @@ export const useGameStore = create((set, get) => ({
 
     // Check we have enough ingredients for PREP_BATCH_SIZE batches
     const batchSize = GAME_CONFIG.PREP_BATCH_SIZE
-    for (const [ingId, qty] of Object.entries(item.ingredients)) {
+    for (const [ingId, qty] of ingredientEntries(item.ingredients)) {
       if ((state.ingredients[ingId] || 0) < qty * batchSize) {
         return { success: false, reason: `Not enough ${ingId}` }
       }
     }
 
-    const newIngredients = { ...state.ingredients }
-    for (const [ingId, qty] of Object.entries(item.ingredients)) {
+    const newIngredients: IngredientStock = { ...state.ingredients }
+    for (const [ingId, qty] of ingredientEntries(item.ingredients)) {
       newIngredients[ingId] = (newIngredients[ingId] || 0) - qty * batchSize
     }
 

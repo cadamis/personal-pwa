@@ -1,9 +1,35 @@
-import { GAME_SPEED, GAME_CONFIG, TABLE_POSITIONS } from './constants.js'
-import { createCustomer, findFreeTable, getSpawnInterval, pickOrder } from './customers.js'
+import { GAME_SPEED, GAME_CONFIG, TABLE_POSITIONS } from './constants'
+import type { Customer, TableOccupancy, Transaction } from './constants'
+import { createCustomer, findFreeTable, getSpawnInterval, pickOrder } from './customers'
+import type { OrderableItem } from './customers'
 
 const WALK_SPEED = 120 // canvas pixels per second
 
-export function tick(deltaMs, store) {
+/**
+ * The state `tick` reads and writes. Deliberately narrower than the full game
+ * store: the loop only needs this slice, and typing it structurally keeps the
+ * tests' lightweight mock store valid without casting it to the real store.
+ */
+export interface TickState<M extends OrderableItem = OrderableItem> {
+  dayRunning: boolean
+  gameTime: number
+  customers: Customer[]
+  tableOccupancy: TableOccupancy
+  menuItems: M[]
+  money: number
+  dailyRevenue: number
+  transactions: Transaction[]
+  lastSpawnTime: number
+  nextSpawnIn: number
+  endDay: () => void
+}
+
+export interface TickStore<M extends OrderableItem = OrderableItem> {
+  getState(): TickState<M>
+  setState(partial: Partial<TickState<M>>): void
+}
+
+export function tick<M extends OrderableItem>(deltaMs: number, store: TickStore<M>): void {
   // ── Guard ─────────────────────────────────────────────────────────────────
   const state = store.getState()
   if (!state.dayRunning) return
@@ -18,14 +44,14 @@ export function tick(deltaMs, store) {
   }
 
   // ── Read all mutable state once ────────────────────────────────────────────
-  let customers     = state.customers.map(c => ({ ...c })) // shallow-clone each
-  let tableOccupancy = { ...state.tableOccupancy }
-  let menuItems     = state.menuItems.map(m => ({ ...m }))
-  let money         = state.money
-  let dailyRevenue  = state.dailyRevenue
-  let transactions  = state.transactions
+  let customers: Customer[] = state.customers.map(c => ({ ...c })) // shallow-clone each
+  let tableOccupancy: TableOccupancy = { ...state.tableOccupancy }
+  let menuItems: M[] = state.menuItems.map(m => ({ ...m }))
+  let money = state.money
+  let dailyRevenue = state.dailyRevenue
+  let transactions = state.transactions
   let lastSpawnTime = state.lastSpawnTime
-  let nextSpawnIn   = state.nextSpawnIn
+  let nextSpawnIn = state.nextSpawnIn
 
   // ── Spawn ──────────────────────────────────────────────────────────────────
   const timeSinceLastSpawn = newTime - lastSpawnTime
@@ -46,7 +72,7 @@ export function tick(deltaMs, store) {
   }
 
   // ── Update each customer ───────────────────────────────────────────────────
-  const toRemove = new Set()
+  const toRemove = new Set<string>()
 
   customers = customers.map(customer => {
     let c = customer

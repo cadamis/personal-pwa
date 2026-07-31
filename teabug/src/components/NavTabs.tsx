@@ -1,4 +1,4 @@
-import { useGameStore } from '../store/gameStore.js'
+import { useGameStore } from '../store/gameStore'
 
 const TABS = [
   { id: 'cafe',      label: 'Café',           icon: '🏠' },
@@ -6,9 +6,15 @@ const TABS = [
   { id: 'inventory', label: 'Inventory',      icon: '📦' },
   { id: 'orders',    label: 'Order Supplies', icon: '🛒' },
   { id: 'help',      label: 'Help',           icon: '📖' },
-]
+] as const
 
-export default function NavTabs({ activeTab, onTabChange }) {
+/** The tabs the app can show — derived from TABS so the two can't drift. */
+export type TabId = (typeof TABS)[number]['id']
+
+export default function NavTabs({ activeTab, onTabChange }: {
+  activeTab: TabId
+  onTabChange: (tab: TabId) => void
+}) {
   const lowIngredients = useGameStore(s => {
     return Object.values(s.ingredients).filter(qty => qty <= 5).length
   })

@@ -1,7 +1,7 @@
-import { useGameStore } from '../store/gameStore.js'
-import { GAME_CONFIG } from '../game/constants.js'
+import { useGameStore } from '../store/gameStore'
+import { GAME_CONFIG } from '../game/constants'
 
-function formatGameTime(minutes) {
+function formatGameTime(minutes: number): string {
   const totalMinutes = Math.floor(minutes)
   const h = Math.floor(totalMinutes / 60)
   const m = totalMinutes % 60
@@ -10,7 +10,7 @@ function formatGameTime(minutes) {
   return `${displayH}:${m.toString().padStart(2, '0')} ${ampm}`
 }
 
-function timeProgress(gameTime) {
+function timeProgress(gameTime: number): number {
   const start = GAME_CONFIG.START_HOUR * 60
   const end = GAME_CONFIG.END_HOUR * 60
   return Math.min(1, Math.max(0, (gameTime - start) / (end - start)))

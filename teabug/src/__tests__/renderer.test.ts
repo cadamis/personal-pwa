@@ -1,26 +1,31 @@
-import { describe, it, expect } from 'vitest'
-import { createMockCtx } from './mockCanvas.js'
+import { describe, it, expect, vi } from 'vitest'
+import { createMockCtx } from './mockCanvas'
 
 // We import the internal drawing helpers indirectly by importing and calling render()
 // To test individual animal functions we reach into renderer.js via the render() export.
 // The renderer module only exports `render`, so we test through it by passing a single
 // synthetic customer with each animal type.
 
-import { render } from '../game/renderer.js'
-import { CANVAS_W, CANVAS_H } from '../game/constants.js'
-import { CUSTOMERS } from '../game/constants.js'
+import { render } from '../game/renderer'
+import { CANVAS_W, CANVAS_H, MENU_CATEGORIES } from '../game/constants'
+import { CUSTOMERS } from '../game/constants'
+import type { AnimalKind, Customer } from '../game/constants'
 
 // Build a minimal customer object at a stable position
-function makeCustomer(animal, overrides = {}) {
+function makeCustomer(animal: AnimalKind, overrides: Partial<Customer> = {}): Customer {
   return {
     id: `test_${animal}`,
     name: 'Tester',
     animal,
     color: '#888',
+    preferredCategory: MENU_CATEGORIES.HOT_TEA,
+    budget: 'mid',
     mood: 'neutral',
     state: 'waiting',
     x: 300,
     y: 250,
+    targetX: 300,
+    targetY: 250,
     order: { itemId: 'blackTeaCup', itemName: 'Black Tea', itemEmoji: '☕' },
     tableId: 0,
     patience: 20,
@@ -117,7 +122,8 @@ describe('renderer – each animal sprite draws without throwing', () => {
     expect(() =>
       render(ctx, {
         ...BASE_RENDER_OPTS,
-        customers: [makeCustomer('unknownAnimal')],
+        // Deliberately off-type: proves the sprite switch's default branch holds.
+        customers: [{ ...makeCustomer('frog'), animal: 'unknownAnimal' as AnimalKind }],
       })
     ).not.toThrow()
   })
@@ -127,7 +133,8 @@ describe('renderer – each animal sprite draws without throwing', () => {
     expect(() =>
       render(ctx, {
         ...BASE_RENDER_OPTS,
-        customers: [makeCustomer(undefined)],
+        // Deliberately off-type: proves `animal || 'frog'` still guards.
+        customers: [{ ...makeCustomer('frog'), animal: undefined as unknown as AnimalKind }],
       })
     ).not.toThrow()
   })
@@ -155,13 +162,13 @@ describe('renderer – canvas calls sanity', () => {
     const ctx = createMockCtx()
     const before = 0
     render(ctx, { ...BASE_RENDER_OPTS, customers: [makeCustomer('frog')] })
-    expect(ctx.beginPath.mock.calls.length).toBeGreaterThan(before)
+    expect(vi.mocked(ctx.beginPath).mock.calls.length).toBeGreaterThan(before)
   })
 
   it('draws speech bubble (calls fillText) for waiting customer', () => {
     const ctx = createMockCtx()
     render(ctx, { ...BASE_RENDER_OPTS, customers: [makeCustomer('ant', { state: 'waiting' })] })
     // fillText is called for speech bubble + name tag
-    expect(ctx.fillText.mock.calls.length).toBeGreaterThan(0)
+    expect(vi.mocked(ctx.fillText).mock.calls.length).toBeGreaterThan(0)
   })
 })

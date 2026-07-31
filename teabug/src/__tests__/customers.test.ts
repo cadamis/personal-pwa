@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { createCustomer, findFreeTable, getSpawnInterval, pickOrder } from '../game/customers.js'
-import { CUSTOMERS, GAME_CONFIG, TABLE_POSITIONS, MENU_CATEGORIES } from '../game/constants.js'
+import { createCustomer, findFreeTable, getSpawnInterval, pickOrder } from '../game/customers'
+import { CUSTOMERS, GAME_CONFIG, TABLE_POSITIONS, MENU_CATEGORIES } from '../game/constants'
+import type { TableOccupancy } from '../game/constants'
 
 // ─── createCustomer ───────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ describe('findFreeTable', () => {
   })
 
   it('returns null when all tables are occupied', () => {
-    const full = {}
+    const full: TableOccupancy = {}
     TABLE_POSITIONS.forEach(t => { full[t.id] = 'someone' })
     expect(findFreeTable(full)).toBeNull()
   })

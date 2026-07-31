@@ -1,10 +1,11 @@
-import { useGameStore } from '../store/gameStore.js'
-import { INGREDIENTS } from '../game/constants.js'
+import { useGameStore } from '../store/gameStore'
+import { INGREDIENTS } from '../game/constants'
+import type { IngredientCategory } from '../game/constants'
 
 const LOW_STOCK_THRESHOLD = 5
 const CRITICAL_THRESHOLD = 2
 
-function StockBadge({ qty }) {
+function StockBadge({ qty }: { qty: number }) {
   const cls = qty <= CRITICAL_THRESHOLD
     ? 'badge badge-critical'
     : qty <= LOW_STOCK_THRESHOLD
@@ -13,7 +14,7 @@ function StockBadge({ qty }) {
   return <span className={cls}>{qty}</span>
 }
 
-function StockBar({ qty, max = 30 }) {
+function StockBar({ qty, max = 30 }: { qty: number; max?: number }) {
   const pct = Math.min(1, qty / max) * 100
   const color = qty <= CRITICAL_THRESHOLD ? 'var(--terracotta)'
     : qty <= LOW_STOCK_THRESHOLD ? '#d4a020'
@@ -35,17 +36,22 @@ const CATEGORY_LABELS = {
   baking: '🌾 Baking',
   fruit:  '🍋 Fruits',
   spice:  '🌶️ Spices',
-}
+} satisfies Record<IngredientCategory, string>
+
+// Fixed display order. Grouping by iterating the categories (rather than
+// accumulating into a bag keyed by category) keeps every group non-empty and
+// fully typed, with no partial-record juggling.
+const CATEGORY_ORDER = ['tea', 'dairy', 'sweet', 'baking', 'fruit', 'spice'] as const
 
 export default function InventoryPanel() {
   const ingredients = useGameStore(s => s.ingredients)
 
-  // Group by category
-  const byCategory = {}
-  Object.values(INGREDIENTS).forEach(ing => {
-    if (!byCategory[ing.category]) byCategory[ing.category] = []
-    byCategory[ing.category].push(ing)
-  })
+  const grouped = CATEGORY_ORDER
+    .map(cat => ({
+      cat,
+      items: Object.values(INGREDIENTS).filter(ing => ing.category === cat),
+    }))
+    .filter(group => group.items.length > 0)
 
   const lowStockItems = Object.values(INGREDIENTS).filter(
     ing => (ingredients[ing.id] || 0) <= LOW_STOCK_THRESHOLD
@@ -66,9 +72,9 @@ export default function InventoryPanel() {
       )}
 
       <div className="inventory-categories">
-        {Object.entries(byCategory).map(([cat, items]) => (
+        {grouped.map(({ cat, items }) => (
           <div key={cat} className="inventory-category">
-            <h3 className="category-title">{CATEGORY_LABELS[cat] || cat}</h3>
+            <h3 className="category-title">{CATEGORY_LABELS[cat]}</h3>
             <div className="ingredient-grid">
               {items.map(ing => {
                 const qty = ingredients[ing.id] || 0

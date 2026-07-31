@@ -1,4 +1,23 @@
-import { CANVAS_W, CANVAS_H, TABLE_POSITIONS } from './constants.js'
+import { CANVAS_W, CANVAS_H, TABLE_POSITIONS } from './constants'
+import type { AnimalKind, Customer, TableOccupancy } from './constants'
+
+/**
+ * The slice of CanvasRenderingContext2D this module actually uses.
+ *
+ * Derived from the real DOM type so the signatures can't drift, but narrowed
+ * so the tests' mock context satisfies it structurally without a cast.
+ * `measureText` is declared separately because the mock returns just a width,
+ * and a full TextMetrics is more than any caller here needs.
+ */
+export type RenderCtx = Pick<
+  CanvasRenderingContext2D,
+  | 'arc' | 'beginPath' | 'clearRect' | 'closePath' | 'ellipse' | 'fill'
+  | 'fillRect' | 'fillStyle' | 'fillText' | 'font' | 'lineTo' | 'lineWidth'
+  | 'moveTo' | 'quadraticCurveTo' | 'roundRect' | 'stroke' | 'strokeRect'
+  | 'strokeStyle' | 'textAlign'
+> & {
+  measureText(text: string): { width: number }
+}
 
 // ─── Color palette ─────────────────────────────────────────────────────────────
 const C = {
@@ -32,7 +51,7 @@ const C = {
 
 // ─── Background / environment ─────────────────────────────────────────────────
 
-function drawFloor(ctx) {
+function drawFloor(ctx: RenderCtx) {
   // Base floor
   ctx.fillStyle = C.floorLight
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H)
@@ -60,7 +79,7 @@ function drawFloor(ctx) {
   }
 }
 
-function drawWalls(ctx) {
+function drawWalls(ctx: RenderCtx) {
   // Top wall (darker wainscoting)
   ctx.fillStyle = C.wallDark
   ctx.fillRect(0, 0, CANVAS_W, 12)
@@ -93,7 +112,7 @@ function drawWalls(ctx) {
   ctx.strokeRect(doorLeft + doorW / 2 + 2, CANVAS_H - 14, doorW / 2 - 6, 10)
 }
 
-function drawWindows(ctx) {
+function drawWindows(ctx: RenderCtx) {
   // Left window
   const wx1 = 30, wy = 14, ww = 100, wh = 60
   ctx.fillStyle = C.windowFrame
@@ -130,7 +149,7 @@ function drawWindows(ctx) {
   ctx.stroke()
 }
 
-function drawPlant(ctx, x, y) {
+function drawPlant(ctx: RenderCtx, x: number, y: number) {
   // Pot
   ctx.fillStyle = C.plantPot
   ctx.beginPath()
@@ -159,7 +178,7 @@ function drawPlant(ctx, x, y) {
   ctx.fill()
 }
 
-function drawCounter(ctx) {
+function drawCounter(ctx: RenderCtx) {
   const cw = CANVAS_W - 40
   const ch = 55
   const cx = 20
@@ -223,7 +242,7 @@ function drawCounter(ctx) {
   ctx.textAlign = 'left'
 }
 
-function drawRug(ctx) {
+function drawRug(ctx: RenderCtx) {
   // Decorative rug in center
   const rx = 200, ry = 225, rw = 400, rh = 160
   ctx.fillStyle = C.rug
@@ -245,7 +264,7 @@ function drawRug(ctx) {
   }
 }
 
-function drawTable(ctx, x, y, occupied) {
+function drawTable(ctx: RenderCtx, x: number, y: number, occupied: boolean) {
   const tw = 58, th = 44, r = 8
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.12)'
@@ -305,7 +324,7 @@ function drawTable(ctx, x, y, occupied) {
   })
 }
 
-function drawTables(ctx, tableOccupancy) {
+function drawTables(ctx: RenderCtx, tableOccupancy: TableOccupancy) {
   TABLE_POSITIONS.forEach(table => {
     drawTable(ctx, table.x, table.y, !!tableOccupancy[table.id])
   })
@@ -313,7 +332,7 @@ function drawTables(ctx, tableOccupancy) {
 
 // ─── Animal sprite drawing functions ─────────────────────────────────────────
 
-function drawFrog(ctx, x, y) {
+function drawFrog(ctx: RenderCtx, x: number, y: number) {
   // Body
   ctx.fillStyle = '#5cb85c'
   ctx.beginPath()
@@ -372,7 +391,7 @@ function drawFrog(ctx, x, y) {
   })
 }
 
-function drawBoxElderBug(ctx, x, y) {
+function drawBoxElderBug(ctx: RenderCtx, x: number, y: number) {
   // Body (dark oval)
   ctx.fillStyle = '#1a1a1a'
   ctx.beginPath()
@@ -431,7 +450,7 @@ function drawBoxElderBug(ctx, x, y) {
   ctx.beginPath(); ctx.moveTo(x + 3, y - 15); ctx.lineTo(x + 8, y - 26); ctx.stroke()
 }
 
-function drawSnake(ctx, x, y) {
+function drawSnake(ctx: RenderCtx, x: number, y: number) {
   // Coiled body base
   ctx.fillStyle = '#6aaa6a'
   ctx.beginPath()
@@ -485,7 +504,7 @@ function drawSnake(ctx, x, y) {
   ctx.beginPath(); ctx.moveTo(x + 21, y - 8); ctx.lineTo(x + 24, y - 10); ctx.stroke()
 }
 
-function drawLadybug(ctx, x, y) {
+function drawLadybug(ctx: RenderCtx, x: number, y: number) {
   // Body (red dome)
   ctx.fillStyle = '#e53935'
   ctx.beginPath()
@@ -536,7 +555,7 @@ function drawLadybug(ctx, x, y) {
   ctx.beginPath(); ctx.arc(x + 7, y - 24, 1.5, 0, Math.PI * 2); ctx.fill()
 }
 
-function drawAnt(ctx, x, y) {
+function drawAnt(ctx: RenderCtx, x: number, y: number) {
   const segColor = '#3e2723'
   const strokeCol = '#1a0a00'
 
@@ -609,7 +628,7 @@ function drawAnt(ctx, x, y) {
   })
 }
 
-function drawButterfly(ctx, x, y) {
+function drawButterfly(ctx: RenderCtx, x: number, y: number) {
   // Upper wings
   ctx.fillStyle = '#ce93d8'
   ;[[x - 16, y - 6], [x + 16, y - 6]].forEach(([wx, wy], i) => {
@@ -675,7 +694,7 @@ function drawButterfly(ctx, x, y) {
   ctx.beginPath(); ctx.arc(x + 9, y - 27, 2, 0, Math.PI * 2); ctx.fill()
 }
 
-function drawSpider(ctx, x, y) {
+function drawSpider(ctx: RenderCtx, x: number, y: number) {
   // 8 legs radiating outward (4 per side), drawn behind body
   ctx.strokeStyle = '#263238'
   ctx.lineWidth = 1.5
@@ -742,7 +761,7 @@ function drawSpider(ctx, x, y) {
   })
 }
 
-function drawAnimalSprite(ctx, x, y, animal) {
+function drawAnimalSprite(ctx: RenderCtx, x: number, y: number, animal: AnimalKind) {
   switch (animal) {
     case 'frog':        drawFrog(ctx, x, y);        break
     case 'boxElderBug': drawBoxElderBug(ctx, x, y); break
@@ -757,7 +776,7 @@ function drawAnimalSprite(ctx, x, y, animal) {
 
 // ─── Customer drawing ─────────────────────────────────────────────────────────
 
-function drawCustomer(ctx, customer) {
+function drawCustomer(ctx: RenderCtx, customer: Customer) {
   const { x, y, name, animal, color, mood, state, order } = customer
   if (state === 'gone') return
 
@@ -812,7 +831,7 @@ function drawCustomer(ctx, customer) {
   ctx.textAlign = 'left'
 }
 
-function drawSpeechBubble(ctx, x, y, text) {
+function drawSpeechBubble(ctx: RenderCtx, x: number, y: number, text: string) {
   const padding = 6
   ctx.font = '11px Lato, sans-serif'
   const tw = ctx.measureText(text).width
@@ -856,7 +875,7 @@ function drawSpeechBubble(ctx, x, y, text) {
 
 // ─── Time-of-day ambient overlay ──────────────────────────────────────────────
 
-function drawAmbientOverlay(ctx, gameTimeMinutes) {
+function drawAmbientOverlay(ctx: RenderCtx, gameTimeMinutes: number) {
   // Warm morning glow at start, neutral midday, gentle blue-orange evening
   const hour = gameTimeMinutes / 60
   let alpha = 0
@@ -880,7 +899,18 @@ function drawAmbientOverlay(ctx, gameTimeMinutes) {
 
 // ─── Main render ──────────────────────────────────────────────────────────────
 
-export function render(ctx, { customers, tableOccupancy, gameTimeMinutes, dayRunning, dayEnded }) {
+export interface RenderScene {
+  customers: Customer[]
+  tableOccupancy: TableOccupancy
+  gameTimeMinutes: number
+  dayRunning: boolean
+  dayEnded: boolean
+}
+
+export function render(
+  ctx: RenderCtx,
+  { customers, tableOccupancy, gameTimeMinutes, dayRunning, dayEnded }: RenderScene,
+): void {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
 
   drawFloor(ctx)

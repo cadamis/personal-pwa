@@ -15,10 +15,13 @@ import '@fontsource/lato/latin-400.css'
 import '@fontsource/lato/latin-700.css'
 import '@fontsource/caveat/latin-400.css'
 
-import App from './App.jsx'
+import App from './App'
 import './index.css'
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+const rootEl = document.getElementById('root')
+if (!rootEl) throw new Error('Missing #root element')
+
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,

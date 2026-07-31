@@ -77,10 +77,4 @@ agents burning turns on unfixable third-party `.d.ts` errors),
 
 ## Known exceptions
 
-- **`teabug/` is still JavaScript.** It was imported from a standalone project
-  and its TypeScript conversion was deliberately deferred so it could ship and
-  be playable first. Roughly 1,900 lines across `src/` still need converting to
-  strict TS extending [tsconfig.base.json](tsconfig.base.json); its 83 tests
-  (`npm test`) are the safety net for doing that. Everything else about the app
-  already matches the conventions above. New apps should not follow this
-  precedent.
+None — every app currently matches the conventions above.

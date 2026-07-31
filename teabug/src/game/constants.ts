@@ -1,5 +1,18 @@
 // ─── Ingredients ─────────────────────────────────────────────────────────────
 
+export type IngredientCategory = 'tea' | 'dairy' | 'sweet' | 'baking' | 'fruit' | 'spice'
+
+export interface Ingredient {
+  id: string
+  name: string
+  emoji: string
+  category: IngredientCategory
+  costPerUnit: number
+}
+
+// `as const satisfies` gives us both: the literal keys become IngredientId (so
+// INGREDIENTS[id] is total and needs no cast), while `satisfies` still checks
+// every entry against the Ingredient shape.
 export const INGREDIENTS = {
   blackTea:    { id: 'blackTea',    name: 'Black Tea',      emoji: '🍵', category: 'tea',    costPerUnit: 0.30 },
   greenTea:    { id: 'greenTea',    name: 'Green Tea',      emoji: '🍵', category: 'tea',    costPerUnit: 0.35 },
@@ -15,6 +28,28 @@ export const INGREDIENTS = {
   lemon:       { id: 'lemon',       name: 'Lemon',          emoji: '🍋', category: 'fruit',  costPerUnit: 0.20 },
   berries:     { id: 'berries',     name: 'Berries',        emoji: '🫐', category: 'fruit',  costPerUnit: 0.50 },
   spices:      { id: 'spices',      name: 'Spice Mix',      emoji: '🌶️', category: 'spice',  costPerUnit: 0.20 },
+} as const satisfies Record<string, Ingredient>
+
+export type IngredientId = keyof typeof INGREDIENTS
+
+/**
+ * An entry read out of the INGREDIENTS table. Distinct from `Ingredient`: this
+ * keeps `id` narrowed to IngredientId, so passing one around and then using
+ * `entry.id` to index the pantry needs no cast.
+ */
+export type IngredientEntry = (typeof INGREDIENTS)[IngredientId]
+
+/** How much of each ingredient is in the pantry. */
+export type IngredientStock = Record<IngredientId, number>
+
+/** What a menu item consumes per serving — only the ingredients it uses. */
+export type IngredientCost = Partial<Record<IngredientId, number>>
+
+// Object.entries widens keys to `string`, which loses IngredientId and makes
+// every pantry lookup look unsafe. This is the one place that's papered over,
+// and it's sound because the input type only permits IngredientId keys.
+export function ingredientEntries(cost: IngredientCost): [IngredientId, number][] {
+  return Object.entries(cost) as [IngredientId, number][]
 }
 
 // Default starting stock
@@ -33,7 +68,7 @@ export const DEFAULT_INGREDIENTS = {
   lemon:       12,
   berries:     10,
   spices:      12,
-}
+} satisfies IngredientStock
 
 // ─── Menu Items ───────────────────────────────────────────────────────────────
 
@@ -41,12 +76,31 @@ export const DEFAULT_INGREDIENTS = {
 export const MENU_CATEGORIES = {
   HOT_TEA:   'hot_tea',
   ICED_TEA:  'iced_tea',
-  SPECIALTY:  'specialty',
+  SPECIALTY: 'specialty',
   PASTRY:    'pastry',
   SWEET:     'sweet',
+} as const
+
+export type MenuCategory = (typeof MENU_CATEGORIES)[keyof typeof MENU_CATEGORIES]
+
+/** A menu item as authored, before the player has set a price on it. */
+export interface MenuItemDef {
+  id: string
+  name: string
+  emoji: string
+  category: MenuCategory
+  ingredients: IngredientCost
+  defaultPrice: number
+  stocked: number
+  description: string
 }
 
-export const DEFAULT_MENU_ITEMS = [
+/** A menu item in play, carrying the price the player has chosen. */
+export interface MenuItem extends MenuItemDef {
+  price: number
+}
+
+export const DEFAULT_MENU_ITEMS: MenuItemDef[] = [
   {
     id: 'blackTeaCup',
     name: 'Black Tea',
@@ -176,7 +230,7 @@ export const GAME_CONFIG = {
   CUSTOMER_PATIENCE_MAX: 30,
   // Service time after order placed (game-minutes)
   SERVICE_TIME: 5,
-}
+} as const
 
 // Game minutes per real millisecond
 // Total game-minutes = (20-8)*60 = 720 over 10 real minutes (600000ms)
@@ -187,8 +241,17 @@ export const GAME_SPEED = 720 / (10 * 60 * 1000) // game-min per real-ms
 export const CANVAS_W = 800
 export const CANVAS_H = 520
 
+export interface TablePosition {
+  id: number
+  x: number
+  y: number
+}
+
+/** tableId -> id of the customer sitting there. */
+export type TableOccupancy = Record<number, string>
+
 // Table seats (center positions) — 8 tables in a 4×2 grid
-export const TABLE_POSITIONS = [
+export const TABLE_POSITIONS: TablePosition[] = [
   { id: 0, x: 140, y: 180 },
   { id: 1, x: 290, y: 180 },
   { id: 2, x: 510, y: 180 },
@@ -204,7 +267,22 @@ export const DOOR_Y = CANVAS_H - 20
 
 // ─── Customer Characters ──────────────────────────────────────────────────────
 
-export const CUSTOMERS = [
+export type AnimalKind =
+  | 'frog'
+  | 'boxElderBug'
+  | 'snake'
+  | 'ladybug'
+  | 'ant'
+  | 'butterfly'
+  | 'spider'
+
+export interface CustomerCharacter {
+  name: string
+  animal: AnimalKind
+  color: string
+}
+
+export const CUSTOMERS: CustomerCharacter[] = [
   { name: 'Froggo',   animal: 'frog',        color: '#5cb85c' },
   { name: 'Boxie',    animal: 'boxElderBug', color: '#2c2c2c' },
   { name: 'Scales',   animal: 'snake',       color: '#7cb87c' },
@@ -213,3 +291,53 @@ export const CUSTOMERS = [
   { name: 'Flo',      animal: 'butterfly',   color: '#AB47BC' },
   { name: 'Lady',     animal: 'spider',      color: '#37474F' },
 ]
+
+// ─── Live customer state ──────────────────────────────────────────────────────
+
+export type CustomerMood = 'neutral' | 'happy' | 'unhappy' | 'impatient'
+
+export type CustomerState =
+  | 'entering'
+  | 'seated'
+  | 'waiting'
+  | 'served'
+  | 'leaving'
+  | 'gone'
+
+export type Budget = 'low' | 'mid' | 'high'
+
+export interface CustomerOrder {
+  itemId: string
+  itemName: string
+  itemEmoji: string
+}
+
+export interface Customer {
+  id: string
+  name: string
+  animal: AnimalKind
+  color: string
+  preferredCategory: MenuCategory
+  budget: Budget
+  patience: number
+  patienceRemaining: number
+  mood: CustomerMood
+  state: CustomerState
+  tableId: number | null
+  order: CustomerOrder | null
+  serviceTimer: number
+  /** Set once served, counting down the after-service linger. */
+  lingerTimer?: number
+  // Canvas position
+  x: number
+  y: number
+  targetX: number
+  targetY: number
+}
+
+export interface Transaction {
+  time: number
+  customerName: string
+  itemName: string
+  amount: number
+}

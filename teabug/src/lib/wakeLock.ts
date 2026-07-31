@@ -7,8 +7,8 @@ import { useEffect, useRef } from 'react'
 // Browsers release the lock whenever the tab is hidden, so it's re-acquired on
 // the next return to visibility. Feature-detected: on browsers without support
 // this does nothing, which is simply today's behaviour.
-export function useWakeLock(active) {
-  const sentinelRef = useRef(null)
+export function useWakeLock(active: boolean): void {
+  const sentinelRef = useRef<WakeLockSentinel | null>(null)
 
   useEffect(() => {
     if (!active || !('wakeLock' in navigator)) return

@@ -1,6 +1,19 @@
 import { useState } from 'react'
-import { useGameStore } from '../store/gameStore.js'
-import { INGREDIENTS, GAME_CONFIG, MENU_CATEGORIES } from '../game/constants.js'
+import { useGameStore } from '../store/gameStore'
+// Aliased: the components below are themselves called MenuItem and PrepResult.
+import type { PrepResult as PrepOutcome } from '../store/gameStore'
+import {
+  INGREDIENTS,
+  GAME_CONFIG,
+  MENU_CATEGORIES,
+  ingredientEntries,
+} from '../game/constants'
+import type {
+  IngredientCost,
+  IngredientStock,
+  MenuCategory,
+  MenuItem as MenuItemModel,
+} from '../game/constants'
 
 const CATEGORY_DISPLAY = {
   [MENU_CATEGORIES.HOT_TEA]:  { label: 'Hot Teas',         icon: '☕' },
@@ -8,25 +21,34 @@ const CATEGORY_DISPLAY = {
   [MENU_CATEGORIES.SPECIALTY]:{ label: 'Specialty Drinks', icon: '🫖' },
   [MENU_CATEGORIES.PASTRY]:   { label: 'Pastries',         icon: '🫓' },
   [MENU_CATEGORIES.SWEET]:    { label: 'Sweets',           icon: '🍪' },
-}
+} satisfies Record<MenuCategory, { label: string; icon: string }>
+
+// Fixed display order, and the source of truth for grouping below.
+const CATEGORY_ORDER = [
+  MENU_CATEGORIES.HOT_TEA,
+  MENU_CATEGORIES.ICED_TEA,
+  MENU_CATEGORIES.SPECIALTY,
+  MENU_CATEGORIES.PASTRY,
+  MENU_CATEGORIES.SWEET,
+] as const
 
 // Price adjusts a quarter at a time — matches how the menu prices are written
 // and keeps the stepper to a sensible number of taps.
 const PRICE_STEP = 0.25
 
-function ingredientCost(ingredients) {
-  return Object.entries(ingredients).reduce((sum, [id, qty]) => {
-    return sum + (INGREDIENTS[id]?.costPerUnit || 0) * qty
+function ingredientCost(ingredients: IngredientCost): number {
+  return ingredientEntries(ingredients).reduce((sum, [id, qty]) => {
+    return sum + INGREDIENTS[id].costPerUnit * qty
   }, 0)
 }
 
-function canPrep(item, ingredientStock) {
-  return Object.entries(item.ingredients).every(
+function canPrep(item: MenuItemModel, ingredientStock: IngredientStock): boolean {
+  return ingredientEntries(item.ingredients).every(
     ([id, qty]) => (ingredientStock[id] || 0) >= qty * GAME_CONFIG.PREP_BATCH_SIZE
   )
 }
 
-function PrepResult({ result, onClose }) {
+function PrepResult({ result, onClose }: { result: PrepOutcome | null; onClose: () => void }) {
   if (!result) return null
   return (
     <div className={`prep-toast ${result.success ? 'success' : 'error'}`}>
@@ -38,10 +60,13 @@ function PrepResult({ result, onClose }) {
   )
 }
 
-function MenuItem({ item, ingredientStock }) {
+function MenuItem({ item, ingredientStock }: {
+  item: MenuItemModel
+  ingredientStock: IngredientStock
+}) {
   const setMenuPrice = useGameStore(s => s.setMenuPrice)
   const prepBatch = useGameStore(s => s.prepBatch)
-  const [prepResult, setPrepResult] = useState(null)
+  const [prepResult, setPrepResult] = useState<PrepOutcome | null>(null)
 
   const cost = ingredientCost(item.ingredients) * GAME_CONFIG.PREP_BATCH_SIZE
   const singleCost = ingredientCost(item.ingredients)
@@ -52,7 +77,7 @@ function MenuItem({ item, ingredientStock }) {
 
   // Adjust in 25c steps rather than via a number field: a number input pops the
   // tablet's on-screen keyboard, which covers the menu and is awkward for a kid.
-  function adjustPrice(delta) {
+  function adjustPrice(delta: number) {
     const next = Math.max(PRICE_STEP, Math.round((item.price + delta) * 100) / 100)
     setMenuPrice(item.id, next)
   }
@@ -84,12 +109,12 @@ function MenuItem({ item, ingredientStock }) {
         <div className="ingredients-list">
           <span className="ingredients-label">Ingredients:</span>
           <div className="ingredient-tags">
-            {Object.entries(item.ingredients).map(([id, qty]) => {
+            {ingredientEntries(item.ingredients).map(([id, qty]) => {
               const ing = INGREDIENTS[id]
               const hasEnough = (ingredientStock[id] || 0) >= qty
               return (
                 <span key={id} className={`ing-tag ${hasEnough ? '' : 'ing-missing'}`}>
-                  {ing?.emoji} {qty}× {ing?.name || id}
+                  {ing.emoji} {qty}× {ing.name}
                 </span>
               )
             })}
@@ -137,14 +162,14 @@ function MenuItem({ item, ingredientStock }) {
           </button>
           <div className="prep-cost">
             <span className="prep-cost-label">Costs:</span>
-            {Object.entries(item.ingredients).map(([id, qty], i, arr) => {
+            {ingredientEntries(item.ingredients).map(([id, qty], i, arr) => {
               const needed = qty * GAME_CONFIG.PREP_BATCH_SIZE
               const have   = ingredientStock[id] || 0
               const short  = have < needed
               const ing    = INGREDIENTS[id]
               return (
                 <span key={id} className={`prep-cost-ing ${short ? 'prep-cost-short' : 'prep-cost-ok'}`}>
-                  {ing?.emoji} {needed}× {ing?.name || id}
+                  {ing.emoji} {needed}× {ing.name}
                   {short && <span className="prep-cost-have"> ({have} on hand)</span>}
                   {i < arr.length - 1 ? ',' : ''}
                 </span>
@@ -161,11 +186,9 @@ export default function MenuPanel() {
   const menuItems = useGameStore(s => s.menuItems)
   const ingredients = useGameStore(s => s.ingredients)
 
-  const byCategory = {}
-  menuItems.forEach(item => {
-    if (!byCategory[item.category]) byCategory[item.category] = []
-    byCategory[item.category].push(item)
-  })
+  const grouped = CATEGORY_ORDER
+    .map(cat => ({ cat, items: menuItems.filter(item => item.category === cat) }))
+    .filter(group => group.items.length > 0)
 
   const totalStocked = menuItems.reduce((s, m) => s + m.stocked, 0)
   const outOfStock = menuItems.filter(m => m.stocked === 0).length
@@ -198,8 +221,8 @@ export default function MenuPanel() {
         </div>
       )}
 
-      {Object.entries(byCategory).map(([cat, items]) => {
-        const { label, icon } = CATEGORY_DISPLAY[cat] || { label: cat, icon: '•' }
+      {grouped.map(({ cat, items }) => {
+        const { label, icon } = CATEGORY_DISPLAY[cat]
         return (
           <div key={cat} className="menu-category-section">
             <h3 className="menu-category-title">{icon} {label}</h3>

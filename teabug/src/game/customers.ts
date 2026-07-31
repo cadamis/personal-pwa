@@ -5,12 +5,38 @@ import {
   TABLE_POSITIONS,
   DOOR_X,
   DOOR_Y,
-} from './constants.js'
+} from './constants'
+import type {
+  Budget,
+  Customer,
+  MenuCategory,
+  TableOccupancy,
+  TablePosition,
+} from './constants'
+
+/** The slice of a menu item the ordering logic reads. */
+export interface OrderableItem {
+  id: string
+  name: string
+  emoji: string
+  category: MenuCategory
+  price: number
+  stocked: number
+}
+
+interface TimePreference {
+  startMin: number
+  endMin: number
+  weights: Record<MenuCategory, number>
+  budgetBias: Budget
+  /** Multiplier on the base spawn rate. */
+  spawnRate: number
+}
 
 // ─── Time-of-day preference weights ──────────────────────────────────────────
 // Each period maps category -> weight (higher = more likely)
 
-const TIME_PREFERENCES = [
+const TIME_PREFERENCES: TimePreference[] = [
   {
     // 8–10am: Morning
     startMin: 8 * 60,
@@ -23,7 +49,7 @@ const TIME_PREFERENCES = [
       [MENU_CATEGORIES.SWEET]:    1,
     },
     budgetBias: 'mid',
-    spawnRate: 1.2, // multiplier on base spawn rate
+    spawnRate: 1.2,
   },
   {
     // 10am–12pm: Late morning
@@ -83,27 +109,38 @@ const TIME_PREFERENCES = [
   },
 ]
 
-function getPeriod(gameTimeMinutes) {
+function getPeriod(gameTimeMinutes: number): TimePreference {
+  // `find` genuinely misses outside trading hours, so fall back to the morning.
   return (
-    TIME_PREFERENCES.find(p => gameTimeMinutes >= p.startMin && gameTimeMinutes < p.endMin) ||
+    TIME_PREFERENCES.find(p => gameTimeMinutes >= p.startMin && gameTimeMinutes < p.endMin) ??
     TIME_PREFERENCES[0]
   )
 }
 
-// Weighted random choice from { key: weight } object
-function weightedRandom(weights) {
-  const entries = Object.entries(weights)
+// Weighted random choice from { category: weight }
+function weightedRandom(weights: Record<MenuCategory, number>): MenuCategory {
+  // Object.entries always widens keys to `string`; the parameter type
+  // guarantees they are MenuCategory.
+  const entries = Object.entries(weights) as [MenuCategory, number][]
   const total = entries.reduce((sum, [, w]) => sum + w, 0)
   let r = Math.random() * total
   for (const [key, weight] of entries) {
     r -= weight
     if (r <= 0) return key
   }
-  return entries[entries.length - 1][0]
+  return MENU_CATEGORIES.HOT_TEA
 }
 
 // Pick the best available menu item for a given preferred category + budget
-export function pickOrder(menuItems, preferredCategory, budget, gameTimeMinutes) {
+// NOTE: `preferredCategory` is accepted but not currently consulted — item
+// choice is driven entirely by the time-of-day weights below. Preserved as-is
+// from the original; changing it would alter game balance.
+export function pickOrder<T extends OrderableItem>(
+  menuItems: T[],
+  preferredCategory: MenuCategory,
+  budget: Budget,
+  gameTimeMinutes: number,
+): T | null {
   const available = menuItems.filter(m => m.stocked > 0)
   if (available.length === 0) return null
 
@@ -135,10 +172,10 @@ export function pickOrder(menuItems, preferredCategory, budget, gameTimeMinutes)
 
 let customerCounter = 0
 
-export function createCustomer(gameTimeMinutes) {
+export function createCustomer(gameTimeMinutes: number): Customer {
   const period = getPeriod(gameTimeMinutes)
   const preferredCategory = weightedRandom(period.weights)
-  const budget = period.budgetBias === 'high'
+  const budget: Budget = period.budgetBias === 'high'
     ? (Math.random() < 0.4 ? 'high' : 'mid')
     : (Math.random() < 0.3 ? 'low' : 'mid')
 
@@ -157,8 +194,8 @@ export function createCustomer(gameTimeMinutes) {
     budget,
     patience,
     patienceRemaining: patience,
-    mood: 'neutral',       // 'neutral' | 'happy' | 'unhappy' | 'impatient'
-    state: 'entering',     // 'entering' | 'seated' | 'waiting' | 'served' | 'leaving' | 'gone'
+    mood: 'neutral',
+    state: 'entering',
     tableId: null,
     order: null,
     serviceTimer: 0,
@@ -170,8 +207,8 @@ export function createCustomer(gameTimeMinutes) {
   }
 }
 
-// Find a free table index, or null if all full
-export function findFreeTable(tableOccupancy) {
+// Find a free table, or null if all full
+export function findFreeTable(tableOccupancy: TableOccupancy): TablePosition | null {
   const occupied = new Set(Object.keys(tableOccupancy).map(Number))
   const free = TABLE_POSITIONS.filter(t => !occupied.has(t.id))
   if (free.length === 0) return null
@@ -179,7 +216,7 @@ export function findFreeTable(tableOccupancy) {
 }
 
 // Compute spawn interval in game-minutes based on current time period
-export function getSpawnInterval(gameTimeMinutes) {
+export function getSpawnInterval(gameTimeMinutes: number): number {
   const period = getPeriod(gameTimeMinutes)
   const base = GAME_CONFIG.SPAWN_MIN_GAME_MIN +
     Math.random() * (GAME_CONFIG.SPAWN_MAX_GAME_MIN - GAME_CONFIG.SPAWN_MIN_GAME_MIN)
