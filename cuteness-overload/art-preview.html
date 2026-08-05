@@ -1,0 +1,82 @@
+<!doctype html>
+<!--
+  Throwaway art check: paints the meadow and a representative crowd of sprites
+  once, with no game loop, so the backdrop can be judged for readability.
+  Not part of the build; delete when done with it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>art preview</title>
+    <style>
+      body { margin: 0; background: #2b1f3a; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" width="900" height="620"></canvas>
+    <script type="module">
+      import { PAINTERS } from './src/art/textures.ts'
+
+      const ctx = document.getElementById('c').getContext('2d')
+      const canvasFor = (key) => PAINTERS[key]().canvas
+
+      // The meadow tile is drawn at MEADOW_TILE_SCALE = 1, so one repeat is the
+      // texture's own 512px. At 900x620 the game camera zoom is 1, so screen
+      // pixels here equal world pixels in play.
+      ctx.fillStyle = ctx.createPattern(canvasFor('bg-meadow'), 'repeat')
+      ctx.fillRect(0, 0, 900, 620)
+
+      // Sprites are shown at ART_SCALE (1/2 of their canvas).
+      const put = (key, x, y, scale = 1) => {
+        const cv = canvasFor(key)
+        const w = cv.width * 0.5 * scale
+        const h = cv.height * 0.5 * scale
+        ctx.drawImage(cv, x - w / 2, y - h / 2, w, h)
+      }
+
+      const foes = ['foe-snail', 'foe-bee', 'foe-slime', 'foe-acorn', 'foe-cloud', 'foe-moth']
+      let seed = 7
+      const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 0x100000000)
+      for (let i = 0; i < 46; i++) put(foes[i % foes.length], rnd() * 880 + 10, rnd() * 600 + 10)
+      for (let i = 0; i < 14; i++) put('pick-heart', rnd() * 880 + 10, rnd() * 600 + 10)
+      for (let i = 0; i < 8; i++) put('pick-sprinkle', rnd() * 880 + 10, rnd() * 600 + 10)
+      for (let i = 0; i < 12; i++) put('proj-bubble', rnd() * 880 + 10, rnd() * 600 + 10)
+      for (let i = 0; i < 6; i++) put('proj-sticker', rnd() * 880 + 10, rnd() * 600 + 10)
+      put('foe-gnome', 700, 160, 1.7)
+      put('foe-fluffington', 250, 460, 2.4)
+      put('char-mochi', 450, 310)
+
+      // The off-screen boss badge, at eight headings, drawn the way HudScene
+      // composes it: translucent disc, boss face, chevron pointing outward.
+      const badge = (cx, cy, dx, dy, key) => {
+        const r = 40
+        ctx.save()
+        ctx.translate(cx, cy)
+        ctx.fillStyle = 'rgba(43,31,58,0.65)'
+        ctx.beginPath()
+        ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(255,209,102,0.95)'
+        ctx.lineWidth = 3
+        ctx.stroke()
+        const face = canvasFor(key)
+        ctx.drawImage(face, -r / 2, -r / 2, r, r)
+        const arrow = canvasFor('ui-pointer')
+        ctx.translate(dx * r * 0.78, dy * r * 0.78)
+        ctx.rotate(Math.atan2(dy, dx))
+        ctx.drawImage(arrow, -arrow.width * 0.25, -arrow.height * 0.25, arrow.width * 0.5, arrow.height * 0.5)
+        ctx.restore()
+      }
+      const compass = [
+        [-1, 0], [1, 0], [0, -1], [0, 1],
+        [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7],
+      ]
+      compass.forEach(([dx, dy], i) => {
+        const cx = 120 + (i % 4) * 220
+        const cy = i < 4 ? 90 : 560
+        badge(cx, cy, dx, dy, i % 2 ? 'foe-fluffington' : 'foe-gnome')
+      })
+    </script>
+  </body>
+</html>

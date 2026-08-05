@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cuteness-overload",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "cuteness-overload", "--", "--port", "5273"],
+      "port": 5273
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5274", "--directory", "_site"],
+      "port": 5274
+    }
+  ]
+}

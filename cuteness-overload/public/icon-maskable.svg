@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffc7e8" />
+      <stop offset="1" stop-color="#b79cff" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bgm)" />
+  <!-- Everything below lives inside the 80% safe zone for maskable crops. -->
+  <g transform="translate(256 256) scale(0.74) translate(-256 -256)">
+    <g fill="#fff3a3" opacity="0.92">
+      <path d="M82 74 l9 22 22 9 -22 9 -9 22 -9 -22 -22 -9 22 -9z" />
+      <path d="M435 118 l7 16 16 7 -16 7 -7 16 -7 -16 -16 -7 16 -7z" />
+      <path d="M410 393 l6 13 13 6 -13 6 -6 13 -6 -13 -13 -6 13 -6z" />
+      <path d="M97 391 l5 11 11 5 -11 5 -5 11 -5 -11 -11 -5 11 -5z" />
+    </g>
+    <ellipse cx="136" cy="125" rx="67" ry="79" fill="#fff7f0" />
+    <ellipse cx="136" cy="131" rx="33" ry="40" fill="#ffb3d9" />
+    <ellipse cx="376" cy="125" rx="67" ry="79" fill="#fff7f0" />
+    <ellipse cx="376" cy="131" rx="33" ry="40" fill="#ffb3d9" />
+    <ellipse cx="256" cy="282" rx="171" ry="161" fill="#ffe4ef" />
+    <ellipse cx="256" cy="271" rx="171" ry="161" fill="#fff7f0" />
+    <ellipse cx="151" cy="310" rx="32" ry="21" fill="#ff9ec4" opacity="0.85" />
+    <ellipse cx="361" cy="310" rx="32" ry="21" fill="#ff9ec4" opacity="0.85" />
+    <g fill="#4a3b52">
+      <ellipse cx="197" cy="259" rx="28" ry="38" />
+      <ellipse cx="315" cy="259" rx="28" ry="38" />
+    </g>
+    <g fill="#ffffff">
+      <ellipse cx="189" cy="246" rx="11" ry="13" opacity="0.95" />
+      <ellipse cx="323" cy="246" rx="11" ry="13" opacity="0.95" />
+      <ellipse cx="203" cy="274" rx="6" ry="7" opacity="0.6" />
+      <ellipse cx="309" cy="274" rx="6" ry="7" opacity="0.6" />
+    </g>
+    <ellipse cx="256" cy="306" rx="9" ry="7" fill="#ff9ec4" />
+    <path
+      d="M242 318 a14 14 0 0 0 14 10 a14 14 0 0 0 14 -10"
+      fill="none"
+      stroke="#4a3b52"
+      stroke-width="8"
+      stroke-linecap="round"
+    />
+  </g>
+</svg>
