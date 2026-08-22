@@ -109,7 +109,10 @@ npm test
 ```
 
 Three unit suites cover the data/logic layer (save parsing and shop purchases,
-stat composition, the level-up pool's awkward cases). The fourth,
+stat composition, the level-up pool's awkward cases). They also cross-check the
+data against the art registry — every texture key a character, Grump, weapon or
+level asks for must have a painter — because a typo there is invisible until
+something renders as a missing-texture square mid-run. The fourth,
 `run.smoke.test.ts`, boots the real game with Phaser's **HEADLESS** renderer and
 steps a run frame by frame — waves spawn, Grumps die, hearts get collected,
 level-up cards get picked, bosses appear, the run ends and sprinkles are banked.

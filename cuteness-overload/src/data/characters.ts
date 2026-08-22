@@ -2,7 +2,7 @@
 import type { StatMod } from '../game/stats'
 import type { WeaponId } from './weapons'
 
-export type CharacterId = 'mochi' | 'nimbus' | 'waffles' | 'pip' | 'blobbo'
+export type CharacterId = 'mochi' | 'nimbus' | 'waffles' | 'pip' | 'blobbo' | 'puddles'
 
 export interface CharacterDef {
   id: CharacterId
@@ -74,6 +74,20 @@ const CHARACTER_LIST: readonly CharacterDef[] = [
     unlockCost: 1000,
     mods: { maxHp: 30, regen: 1.2, moveSpeed: -10, areaMult: 0.18 },
     perk: 'Heals over time and takes up more room.',
+  },
+  {
+    id: 'puddles',
+    name: 'Puddles',
+    title: 'the Dabbling Duck',
+    blurb: 'Small, round and permanently unbothered. The goose is a friend of hers.',
+    texture: 'char-puddles',
+    startWeapon: 'sassyGoose',
+    unlockCost: 1250,
+    // A forager rather than a fighter: she snaffles hearts from further off and
+    // turns them into levels quicker, which pairs with a starting weapon that
+    // guards her while she waddles about picking things up.
+    mods: { pickupRadius: 34, xpMult: 0.14, maxHp: -6 },
+    perk: 'Grabs hearts from further away and levels up quicker.',
   },
 ]
 

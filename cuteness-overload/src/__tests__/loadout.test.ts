@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { CHARACTERS } from '../data/characters'
+import { CHARACTERS, CHARACTER_IDS, STARTER_CHARACTER } from '../data/characters'
+import { ENEMIES, ENEMY_IDS } from '../data/enemies'
+import { PAINTERS } from '../art/textures'
 import { PASSIVES } from '../data/passives'
 import { WEAPONS, maxWeaponLevel, weaponLevel } from '../data/weapons'
 import {
@@ -12,7 +14,7 @@ import {
   passiveLevelOf,
   weaponLevelOf,
 } from '../game/loadout'
-import { LEVELS } from '../data/levels'
+import { LEVELS, LEVEL_IDS } from '../data/levels'
 import { baseStats, difficultyAt, modsUpToLevel, xpToNext } from '../game/stats'
 import { PASSIVE_IDS } from '../data/passives'
 import { WEAPON_IDS } from '../data/weapons'
@@ -116,6 +118,41 @@ describe('stat maths', () => {
     const forest = LEVELS.forest.ramp
     expect(difficultyAt(240, forest).hp).toBeGreaterThan(difficultyAt(240, meadow).hp)
     expect(difficultyAt(240, forest).damage).toBeGreaterThan(difficultyAt(240, meadow).damage)
+  })
+})
+
+describe('the art registry lines up with the data', () => {
+  // A mistyped texture key is invisible until something renders as the missing
+  // green square in the middle of a run, which is a miserable way to find it.
+  it('has a painter for every texture the data asks for', () => {
+    for (const id of CHARACTER_IDS) expect(PAINTERS).toHaveProperty(CHARACTERS[id].texture)
+    for (const id of ENEMY_IDS) expect(PAINTERS).toHaveProperty(ENEMIES[id].texture)
+    for (const id of WEAPON_IDS) expect(PAINTERS).toHaveProperty(WEAPONS[id].texture)
+    for (const id of LEVEL_IDS) {
+      expect(PAINTERS).toHaveProperty(LEVELS[id].backdrop)
+      const obstacles = LEVELS[id].obstacles
+      if (obstacles) expect(PAINTERS).toHaveProperty(obstacles.texture)
+    }
+  })
+
+  it('gives every friend a real starting weapon and a price', () => {
+    for (const id of CHARACTER_IDS) {
+      const def = CHARACTERS[id]
+      expect(WEAPONS).toHaveProperty(def.startWeapon)
+      expect(def.unlockCost).toBeGreaterThanOrEqual(0)
+      expect(def.perk).toBeTruthy()
+      expect(def.title).toBeTruthy()
+    }
+    // Exactly one is free, or the roster has no obvious starting point.
+    expect(CHARACTER_IDS.filter((id) => CHARACTERS[id].unlockCost === 0)).toEqual([STARTER_CHARACTER])
+  })
+
+  it('names every boss from the enemy roster', () => {
+    for (const id of LEVEL_IDS) {
+      expect(ENEMIES).toHaveProperty(LEVELS[id].boss)
+      expect(ENEMIES).toHaveProperty(LEVELS[id].miniBoss)
+      expect(ENEMIES[LEVELS[id].boss].isBoss).toBe(true)
+    }
   })
 })
 

@@ -177,6 +177,55 @@ const blobbo: Painter = () => {
   return { ctx, ...rest }
 }
 
+/**
+ * Puddles. Kept a warm yellow with happy eyes so she never reads as the Sassy
+ * Goose, which is white with an angry face and turns up as a projectile.
+ */
+const puddles: Painter = () => {
+  const { ctx, ...rest } = makeCanvas(42)
+  const cx = 20
+  const cy = 24
+  const body = P.lemon
+  const edge = rim(P.gold)
+
+  // little webbed feet, poking out below
+  for (const side of [-1, 1]) {
+    ctx.beginPath()
+    ctx.moveTo(cx + side * 4, cy + 10)
+    ctx.lineTo(cx + side * 4 - 4, cy + 15)
+    ctx.lineTo(cx + side * 4 + 4, cy + 15)
+    ctx.closePath()
+    ctx.fillStyle = css(P.coral)
+    ctx.fill()
+    ctx.lineWidth = 1.3
+    ctx.strokeStyle = css(rim(P.coral))
+    ctx.stroke()
+  }
+
+  ellipse(ctx, cx - 1, cy + 3, 13, 11, body, edge) // body
+  ellipse(ctx, cx + 10, cy - 1, 5.5, 5, body, edge) // tail flick, pointing back
+  ellipse(ctx, cx - 3, cy - 7, 10.5, 9.5, body, edge) // head
+  ellipse(ctx, cx - 4, cy + 5, 7, 5.5, lighten(body, 0.45)) // belly
+  // wing, tucked along the side
+  ellipse(ctx, cx + 2, cy + 3, 6, 4.5, lighten(body, 0.3), edge, 1.3)
+
+  // bill
+  ctx.beginPath()
+  ctx.moveTo(cx - 11, cy - 8)
+  ctx.quadraticCurveTo(cx - 20, cy - 6, cx - 11, cy - 3)
+  ctx.closePath()
+  ctx.fillStyle = css(P.coral)
+  ctx.fill()
+  ctx.lineWidth = 1.4
+  ctx.strokeStyle = css(rim(P.coral))
+  ctx.stroke()
+
+  gloss(ctx, cx - 7, cy - 12, 3.6, 2.2, 0.5)
+  eyes(ctx, cx - 3, cy - 8, 4.4, 3.1, 'sparkly')
+  blush(ctx, cx - 3, cy - 3.5, 8, 2.6, 1.8)
+  return { ctx, ...rest }
+}
+
 // -------------------------------------------------------------------- the Grumps
 
 const snail: Painter = () => {
@@ -1034,6 +1083,7 @@ export const PAINTERS: Readonly<Record<string, Painter>> = {
   'char-waffles': waffles,
   'char-pip': pip,
   'char-blobbo': blobbo,
+  'char-puddles': puddles,
 
   'foe-snail': snail,
   'foe-bee': bee,

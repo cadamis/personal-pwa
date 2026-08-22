@@ -14,7 +14,7 @@
     </style>
   </head>
   <body>
-    <canvas id="c" width="900" height="820"></canvas>
+    <canvas id="c" width="900" height="860"></canvas>
     <script type="module">
       import { PAINTERS } from './src/art/textures.ts'
 
@@ -83,13 +83,21 @@
       }
       // A clean strip below the crowd, at 2.5x, so the orientation is legible.
       ctx.fillStyle = '#2b1f3a'
-      ctx.fillRect(0, 620, 900, 200)
+      ctx.fillRect(0, 620, 900, 240)
       ctx.fillStyle = '#96c288'
-      ctx.fillRect(10, 630, 880, 180)
-      brolly(140, 720, 1, 0)
-      brolly(360, 720, -1, 0)
-      brolly(580, 720, 0, 1)
-      brolly(790, 720, 0.7, -0.7)
+      ctx.fillRect(10, 630, 880, 220)
+      // Puddles beside her goose, at 3x, to check they don't read as each other.
+      const roster = ['char-mochi', 'char-nimbus', 'char-waffles', 'char-pip', 'char-blobbo', 'char-puddles']
+      roster.forEach((key, i) => {
+        const cv = canvasFor(key)
+        const z = 3
+        ctx.drawImage(cv, 40 + i * 105 - cv.width * 0.25 * z, 660 - cv.height * 0.25 * z, cv.width * 0.5 * z, cv.height * 0.5 * z)
+      })
+      const goose = canvasFor('proj-goose')
+      ctx.drawImage(goose, 680, 630, goose.width * 1.5, goose.height * 1.5)
+
+      brolly(210, 780, 1, 0)
+      brolly(500, 780, -1, 0)
 
       // The off-screen boss badge, at eight headings, drawn the way HudScene
       // composes it: translucent disc, boss face, chevron pointing outward.
