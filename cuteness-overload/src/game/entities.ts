@@ -53,6 +53,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   knockTimer = 0
   /** Game time before which this Grump can't bump the player again. */
   nextTouchAt = 0
+  /** ms left of sidestepping around an obstacle it walked into. */
+  detourTimer = 0
+  /** Which way it sidesteps, so a crowd splits around a bush instead of piling. */
+  detourSign = 1
   flashTimer = 0
   worldRadius = 10
 
@@ -80,6 +84,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.driftAngle = Math.random() * Math.PI * 2
     this.knockTimer = 0
     this.nextTouchAt = 0
+    this.detourTimer = 0
     this.flashTimer = 0
     this.worldRadius = def.radius * def.scale
 

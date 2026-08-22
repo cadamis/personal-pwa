@@ -24,8 +24,16 @@
       // The meadow tile is drawn at MEADOW_TILE_SCALE = 1, so one repeat is the
       // texture's own 512px. At 900x620 the game camera zoom is 1, so screen
       // pixels here equal world pixels in play.
+      // Left half meadow, right half forest, so the two floors can be compared.
       ctx.fillStyle = ctx.createPattern(canvasFor('bg-meadow'), 'repeat')
+      ctx.fillRect(0, 0, 450, 620)
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(450, 0, 450, 620)
+      ctx.clip()
+      ctx.fillStyle = ctx.createPattern(canvasFor('bg-forest'), 'repeat')
       ctx.fillRect(0, 0, 900, 620)
+      ctx.restore()
 
       // Sprites are shown at ART_SCALE (1/2 of their canvas).
       const put = (key, x, y, scale = 1) => {
@@ -45,6 +53,9 @@
       for (let i = 0; i < 6; i++) put('proj-sticker', rnd() * 880 + 10, rnd() * 600 + 10)
       put('foe-gnome', 700, 160, 1.7)
       put('foe-fluffington', 250, 460, 2.4)
+      // Bushes on the forest side, at the density the level actually uses.
+      for (let i = 0; i < 7; i++) put('prop-bush', 500 + (i % 3) * 150, 90 + Math.floor(i / 3) * 190)
+      put('foe-monkey', 700, 470, 2.3)
       put('char-mochi', 450, 310)
 
       // The off-screen boss badge, at eight headings, drawn the way HudScene

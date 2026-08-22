@@ -109,19 +109,18 @@ export function xpToNext(level: number): number {
 }
 
 /**
- * How much tougher enemies are at `seconds` into a run. Applied as a
- * multiplier to spawned HP so a 5-minute run has a real difficulty arc without
- * needing per-wave stat tables.
+ * How much tougher Grumps are at `seconds` into a run, given a level's ramp.
+ * Applied as a multiplier when one is spawned, so a level's difficulty arc needs
+ * no per-wave stat tables.
  */
-export function difficultyAt(seconds: number): {
-  hp: number
-  speed: number
-  damage: number
-} {
+export function difficultyAt(
+  seconds: number,
+  ramp: { hp: number; speed: number; damage: number },
+): { hp: number; speed: number; damage: number } {
   const minutes = seconds / 60
   return {
-    hp: 1 + minutes * 0.42,
-    speed: 1 + minutes * 0.05,
-    damage: 1 + minutes * 0.15,
+    hp: 1 + minutes * ramp.hp,
+    speed: 1 + minutes * ramp.speed,
+    damage: 1 + minutes * ramp.damage,
   }
 }

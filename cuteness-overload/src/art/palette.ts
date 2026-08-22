@@ -9,6 +9,16 @@ export const P = {
   grass: 0xb8e6a0,
   grassDark: 0x9bd884,
   grassDarker: 0x86c96f,
+
+  // Backdrop / forest — cooler and a shade darker, so the bushes read as solid
+  // objects against it without the sprites losing contrast.
+  forestFloor: 0x96c288,
+  forestDark: 0x7aa96e,
+  forestDarker: 0x638f59,
+  bush: 0x5f9e57,
+  bushDark: 0x477a41,
+  bushLight: 0x7cbd6e,
+  berry: 0xff8fb8,
   flowerPink: 0xffb3d9,
   flowerYellow: 0xfff3a3,
   flowerBlue: 0xa9dcff,

@@ -12,6 +12,7 @@ import {
   passiveLevelOf,
   weaponLevelOf,
 } from '../game/loadout'
+import { LEVELS } from '../data/levels'
 import { baseStats, difficultyAt, modsUpToLevel, xpToNext } from '../game/stats'
 import { PASSIVE_IDS } from '../data/passives'
 import { WEAPON_IDS } from '../data/weapons'
@@ -101,10 +102,16 @@ describe('stat maths', () => {
     }
   })
 
-  it('ramps difficulty over a run', () => {
-    expect(difficultyAt(0).hp).toBe(1)
-    expect(difficultyAt(240).hp).toBeGreaterThan(difficultyAt(60).hp)
-    expect(difficultyAt(240).damage).toBeGreaterThan(1)
+  it('ramps difficulty over a run, per level', () => {
+    const meadow = LEVELS.meadow.ramp
+    expect(difficultyAt(0, meadow).hp).toBe(1)
+    expect(difficultyAt(240, meadow).hp).toBeGreaterThan(difficultyAt(60, meadow).hp)
+    expect(difficultyAt(240, meadow).damage).toBeGreaterThan(1)
+
+    // The forest is the harder level and its ramp has to actually be steeper.
+    const forest = LEVELS.forest.ramp
+    expect(difficultyAt(240, forest).hp).toBeGreaterThan(difficultyAt(240, meadow).hp)
+    expect(difficultyAt(240, forest).damage).toBeGreaterThan(difficultyAt(240, meadow).damage)
   })
 })
 

@@ -421,6 +421,67 @@ const fluffington: Painter = () => {
   return { ctx, ...rest }
 }
 
+/**
+ * The forest's boss. Leaps rather than trudges, so the silhouette wants to read
+ * as "about to spring": wide ears, hunched shoulders, and a very cross face.
+ */
+const monkey: Painter = () => {
+  const { ctx, ...rest } = makeCanvas(78)
+  const cx = 39
+  const cy = 44
+  const fur = P.grumpBrown
+  const edge = rim(fur)
+
+  // tail, curling out behind
+  ctx.beginPath()
+  ctx.moveTo(cx - 22, cy + 12)
+  ctx.bezierCurveTo(cx - 40, cy + 8, cx - 38, cy - 16, cx - 24, cy - 12)
+  ctx.lineWidth = 6
+  ctx.strokeStyle = css(edge)
+  ctx.stroke()
+  ctx.lineWidth = 3.6
+  ctx.strokeStyle = css(fur)
+  ctx.stroke()
+
+  // hunched body and arms
+  ellipse(ctx, cx, cy + 14, 22, 16, fur, edge, 1.8)
+  for (const side of [-1, 1]) {
+    ellipse(ctx, cx + side * 22, cy + 10, 7.5, 13, fur, edge, 1.6)
+    ellipse(ctx, cx + side * 22, cy + 20, 6, 5, lighten(fur, 0.3), edge, 1.4)
+  }
+
+  // ears
+  for (const side of [-1, 1]) {
+    circle(ctx, cx + side * 24, cy - 12, 10, fur, edge, 1.8)
+    circle(ctx, cx + side * 24, cy - 12, 5.5, P.peach)
+  }
+
+  ellipse(ctx, cx, cy - 12, 22, 20, fur, edge, 1.8)
+  // face patch
+  ellipse(ctx, cx, cy - 7, 16, 14, P.peach)
+  ellipse(ctx, cx, cy - 1, 11, 8, lighten(P.peach, 0.25))
+
+  eyes(ctx, cx, cy - 12, 8, 4.6, 'cross')
+  for (const side of [-1, 1]) ellipse(ctx, cx + side * 3, cy - 2, 1.6, 1.2, P.ink)
+  mouth(ctx, cx, cy + 6, 4.5, 'frown')
+  // a banana, obviously
+  ctx.save()
+  ctx.translate(cx + 26, cy + 22)
+  ctx.rotate(-0.5)
+  ctx.beginPath()
+  ctx.moveTo(-8, 3)
+  ctx.quadraticCurveTo(0, -7, 9, 1)
+  ctx.quadraticCurveTo(0, 1, -8, 3)
+  ctx.closePath()
+  ctx.fillStyle = css(P.lemon)
+  ctx.fill()
+  ctx.lineWidth = 1.4
+  ctx.strokeStyle = css(darken(P.gold, 0.35))
+  ctx.stroke()
+  ctx.restore()
+  return { ctx, ...rest }
+}
+
 // ------------------------------------------------------------------ projectiles
 
 const bubble: Painter = () => {
@@ -743,6 +804,39 @@ const snackPickup: Painter = () => {
   return { ctx, ...rest }
 }
 
+/**
+ * A bush. Solid enough to read as an obstacle at a glance, because in the forest
+ * it stops the player, the Grumps and every projectile.
+ */
+const bush: Painter = () => {
+  const { ctx, ...rest } = makeCanvas(48)
+  const c = 24
+  const rnd = seededRandom(404)
+  // A ring of lobes plus a body, so the outline is bumpy rather than a circle.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    const r = 13 + rnd() * 2.5
+    circle(ctx, c + Math.cos(a) * 9, c + Math.sin(a) * 8, r, P.bush, P.bushDark, 2)
+  }
+  circle(ctx, c, c, 15, P.bush)
+  // Highlights on top-left only, which is where every other sprite is lit from.
+  for (const [dx, dy, r] of [
+    [-6, -7, 6.5],
+    [3, -9, 5],
+    [-9, 1, 4.5],
+  ]) {
+    circle(ctx, c + dx, c + dy, r, P.bushLight)
+  }
+  for (const [dx, dy] of [
+    [7, 4],
+    [-3, 9],
+    [10, -3],
+  ]) {
+    circle(ctx, c + dx, c + dy, 2.4, P.berry, darken(P.berry, 0.3), 1)
+  }
+  return { ctx, ...rest }
+}
+
 // ------------------------------------------------------------------ backdrop
 
 /**
@@ -782,6 +876,38 @@ const meadow: Painter = () => {
   patch(size * 0.85, size * 0.22, size * 0.3, lighten(P.grass, 0.4), 0.4)
   patch(size * 0.3, size * 0.85, size * 0.34, lighten(P.grass, 0.4), 0.35)
 
+  return { ctx, ...rest }
+}
+
+/**
+ * The forest floor. Same rule as the meadow — only features far larger than any
+ * sprite — but cooler and a shade darker so the bushes read as solid.
+ */
+const forest: Painter = () => {
+  const size = 256
+  const { ctx, ...rest } = makeCanvas(size)
+  ctx.fillStyle = css(P.forestFloor)
+  ctx.fillRect(0, 0, size, size)
+
+  const patch = (x: number, y: number, radius: number, color: number, alpha: number): void => {
+    wrapped(ctx, size, () => {
+      const grad = ctx.createRadialGradient(x, y, radius * 0.15, x, y, radius)
+      grad.addColorStop(0, css(color, alpha))
+      grad.addColorStop(0.65, css(color, alpha * 0.7))
+      grad.addColorStop(1, css(color, 0))
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.ellipse(x, y, radius, radius * 0.82, 0, 0, Math.PI * 2)
+      ctx.fill()
+    })
+  }
+
+  // Big canopy shadows, and a couple of sunlit gaps between them.
+  patch(size * 0.28, size * 0.26, size * 0.44, P.forestDarker, 0.55)
+  patch(size * 0.74, size * 0.72, size * 0.4, P.forestDarker, 0.5)
+  patch(size * 0.6, size * 0.12, size * 0.28, P.forestDark, 0.45)
+  patch(size * 0.86, size * 0.3, size * 0.26, lighten(P.forestFloor, 0.35), 0.4)
+  patch(size * 0.22, size * 0.82, size * 0.3, lighten(P.forestFloor, 0.35), 0.35)
   return { ctx, ...rest }
 }
 
@@ -860,6 +986,7 @@ export const PAINTERS: Readonly<Record<string, Painter>> = {
   'foe-moth': moth,
   'foe-gnome': gnome,
   'foe-fluffington': fluffington,
+  'foe-monkey': monkey,
 
   'proj-bubble': bubble,
   'proj-spike': spike,
@@ -884,6 +1011,8 @@ export const PAINTERS: Readonly<Record<string, Painter>> = {
   'pick-snack': snackPickup,
 
   'bg-meadow': meadow,
+  'bg-forest': forest,
+  'prop-bush': bush,
 
   'ui-stick-base': stickBase,
   'ui-stick-knob': stickKnob,

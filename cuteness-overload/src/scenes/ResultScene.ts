@@ -11,6 +11,10 @@ import { formatTime } from './MenuScene'
 interface ResultData {
   won: boolean
   quit: boolean
+  levelId: string
+  levelName: string
+  /** Name of a level this win just opened up, if any. */
+  unlockedLevel: string | null
   survivedSec: number
   kills: number
   earned: number
@@ -57,9 +61,11 @@ export class ResultScene extends Phaser.Scene {
 
     const headline = won ? 'YOU DID IT!' : quit ? 'Maybe next time!' : 'Squished!'
     const subline = won
-      ? 'Sir Fluffington has been thoroughly out-cuted.'
+      ? this.payload.unlockedLevel
+        ? `${this.payload.unlockedLevel} is now open!`
+        : 'That boss has been thoroughly out-cuted.'
       : quit
-        ? 'The meadow will be here when you get back.'
+        ? 'It will all be here when you get back.'
         : 'The Grumps got you. Rude.'
 
     add(
@@ -94,6 +100,7 @@ export class ResultScene extends Phaser.Scene {
     drawPanel(panel, panelX, panelY, panelW, panelH)
 
     const rows: [string, string, number][] = [
+      ['🗺️ Level', this.payload.levelName, P.purple],
       ['⏱️ Survived', formatTime(this.payload.survivedSec) + (this.payload.newBestTime ? '  ⭐ best!' : ''), P.purple],
       ['💥 Grumps squished', `${this.payload.kills}`, P.ink],
       ['⬆️ Level reached', `${this.payload.level}`, P.ink],
@@ -142,7 +149,11 @@ export class ResultScene extends Phaser.Scene {
         height: btnH,
         fill: P.pink,
         fontSize: 26 * s,
-        onClick: () => this.scene.start('Game', { characterId: this.payload.characterId }),
+        onClick: () =>
+          this.scene.start('Game', {
+            characterId: this.payload.characterId,
+            levelId: this.payload.levelId,
+          }),
       }),
     )
     add(

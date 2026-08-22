@@ -25,6 +25,7 @@ export type EnemyId =
   | 'moodyMoth'
   | 'grumpyGnome'
   | 'sirFluffington'
+  | 'grumpyMonkey'
 
 export interface EnemyDef {
   id: EnemyId
@@ -174,6 +175,25 @@ const ENEMY_LIST: readonly EnemyDef[] = [
     snackChance: 1,
   },
   {
+    id: 'grumpyMonkey',
+    name: 'Grumpy Monkey',
+    texture: 'foe-monkey',
+    hp: 2600,
+    speed: 46,
+    damage: 20,
+    xp: 110,
+    radius: 38,
+    scale: 2.3,
+    // Monkeys leap. It also gives the fight a rhythm to dodge rather than a
+    // constant chase, which matters more when the forest is full of bushes.
+    behavior: 'dash',
+    sprinkleChance: 1,
+    snackChance: 1,
+    isBoss: true,
+    dashSpeed: 290,
+    dashInterval: 2100,
+  },
+  {
     id: 'sirFluffington',
     name: 'Sir Fluffington',
     texture: 'foe-fluffington',
@@ -196,16 +216,11 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = Object.fromEntries(
 
 export const ENEMY_IDS = ENEMY_LIST.map((e) => e.id)
 
-/** Seconds a run lasts before Sir Fluffington turns up. Beat him to win. */
-export const BOSS_TIME = 240
-/** Seconds before the mid-run Grumpy Gnome. */
-export const MINIBOSS_TIME = 120
-
 /**
  * Waves run to the hard end of a run rather than to the boss, so a player who
- * doesn't beat Sir Fluffington isn't left wandering an empty meadow.
+ * doesn't beat the boss isn't left wandering an empty level.
  */
-const RUN_END = 600
+export const RUN_END = 600
 
 export interface Wave {
   /** Seconds into the run this wave starts and stops contributing spawns. */
@@ -217,28 +232,16 @@ export interface Wave {
 }
 
 /**
- * Overlapping waves, so the mix thickens rather than switching over. Rates are
- * summed for whichever waves are live, and the spawner caps total live Grumps.
+ * The most Grumps any level may have alive at once — a tablet has to draw them
+ * all. Individual levels can ask for fewer.
  */
-export const WAVES: readonly Wave[] = [
-  { from: 0, to: RUN_END, enemies: ['grumpySnail'], rate: 0.7 },
-  { from: 25, to: RUN_END, enemies: ['bumblingBee'], rate: 0.5 },
-  { from: 55, to: RUN_END, enemies: ['moodyMoth'], rate: 0.45 },
-  { from: 85, to: RUN_END, enemies: ['poutySlime'], rate: 0.35 },
-  { from: 115, to: RUN_END, enemies: ['crankyAcorn'], rate: 0.4 },
-  { from: 150, to: RUN_END, enemies: ['sadCloud'], rate: 0.3 },
-  { from: 180, to: RUN_END, enemies: ['grumpySnail', 'bumblingBee', 'poutySlime'], rate: 0.6 },
-  { from: 220, to: RUN_END, enemies: ['crankyAcorn', 'moodyMoth', 'sadCloud'], rate: 0.65 },
-]
+export const MAX_LIVE_ENEMIES = 150
 
-/** Never have more than this many Grumps alive — a tablet has to draw them all. */
-export const MAX_LIVE_ENEMIES = 140
-
-/** Total spawn rate at `seconds`, and the pool to pick from. */
-export function activeWaves(seconds: number): { rate: number; pool: EnemyId[] } {
+/** Total spawn rate at `seconds` for one level's wave table, and its pool. */
+export function activeWaves(seconds: number, waves: readonly Wave[]): { rate: number; pool: EnemyId[] } {
   let rate = 0
   const pool: EnemyId[] = []
-  for (const wave of WAVES) {
+  for (const wave of waves) {
     if (seconds >= wave.from && seconds < wave.to) {
       rate += wave.rate
       pool.push(...wave.enemies)

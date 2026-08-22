@@ -4,19 +4,12 @@ import { ART_SCALE } from '../art/textures'
 import { P } from '../art/palette'
 import { sfx } from '../audio/sfx'
 import { CHARACTERS, toCharacterId, type CharacterId } from '../data/characters'
-import {
-  BOSS_TIME,
-  ENEMIES,
-  MAX_LIVE_ENEMIES,
-  MINIBOSS_TIME,
-  activeWaves,
-  type EnemyDef,
-  type EnemyId,
-} from '../data/enemies'
+import { ENEMIES, MAX_LIVE_ENEMIES, activeWaves, type EnemyDef, type EnemyId } from '../data/enemies'
+import { LEVELS, LEVEL_IDS, toLevelId, type LevelDef } from '../data/levels'
 import { WEAPONS } from '../data/weapons'
 import { Enemy, Orbiter, Pickup, Shot, Turret, setCircleBody, type PickupKind } from '../game/entities'
 import { computeStats, emptyInventory, grantPassive, grantWeapon, type Inventory } from '../game/loadout'
-import { applyRunResult, loadSave, writeSave, type SaveData } from '../game/save'
+import { applyRunResult, isLevelUnlocked, loadSave, writeSave, type SaveData } from '../game/save'
 import { difficultyAt, xpToNext, type Stats } from '../game/stats'
 import { SNACK_HEAL, STASH_SPRINKLES, choiceCount, rollChoices, type Choice } from '../game/upgradePool'
 import {
@@ -26,6 +19,7 @@ import {
   type TurretRequest,
   type WeaponHost,
 } from '../game/weaponSystem'
+import { ObstacleField } from '../game/obstacles'
 import { wakeLock } from '../lib/wakeLock'
 import type { HudScene } from './HudScene'
 
@@ -64,12 +58,6 @@ interface TimedEvent {
 }
 
 const RUN_SECONDS_CAP = 600
-/**
- * How large the meadow tile is drawn. The texture is 512px, so 1 puts a repeat
- * every 512 world pixels — nearly a whole screen, which keeps the backdrop from
- * reading as a pattern at all.
- */
-const MEADOW_TILE_SCALE = 1
 /** How long one Grump waits before it can bump you again. */
 const ENEMY_TOUCH_COOLDOWN = 800
 /**
@@ -85,6 +73,7 @@ const DESPAWN_DISTANCE = 1750
 export class GameScene extends Phaser.Scene implements WeaponHost {
   // --- run state
   private characterId: CharacterId = 'mochi'
+  private levelDef: LevelDef = LEVELS.meadow
   private save: SaveData = loadSave()
   private inventory: Inventory = emptyInventory()
   private statBlock!: Stats
@@ -112,6 +101,8 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
   private pickupGroup!: Phaser.GameObjects.Group
   private orbiterGroup!: Phaser.GameObjects.Group
   private turretGroup!: Phaser.GameObjects.Group
+  private obstacleGroup?: Phaser.Physics.Arcade.StaticGroup
+  private obstacles?: ObstacleField
   private puffs!: Phaser.GameObjects.Particles.ParticleEmitter
   private sparkles!: Phaser.GameObjects.Particles.ParticleEmitter
   private weapons!: WeaponSystem
@@ -157,8 +148,9 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     super('Game')
   }
 
-  init(data: { characterId?: string }): void {
+  init(data: { characterId?: string; levelId?: string }): void {
     this.characterId = toCharacterId(data?.characterId)
+    this.levelDef = LEVELS[toLevelId(data?.levelId)]
     this.save = loadSave()
     this.inventory = emptyInventory()
     this.hp = 1
@@ -183,8 +175,8 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     const character = CHARACTERS[this.characterId]
 
     // ---------------------------------------------------------------- world
-    this.backdrop = this.add.tileSprite(0, 0, 100, 100, 'bg-meadow').setDepth(-10)
-    this.backdrop.setTileScale(MEADOW_TILE_SCALE, MEADOW_TILE_SCALE)
+    this.backdrop = this.add.tileSprite(0, 0, 100, 100, this.levelDef.backdrop).setDepth(-10)
+    this.backdrop.setTileScale(this.levelDef.tileScale, this.levelDef.tileScale)
 
     this.player = this.physics.add
       .sprite(0, 0, character.texture)
@@ -264,6 +256,16 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     this.physics.add.overlap(this.player, this.enemyGroup, this.onEnemyTouchesPlayer, undefined, this)
     this.physics.add.overlap(this.player, this.foeShotGroup, this.onFoeShotHitsPlayer, undefined, this)
 
+    // ------------------------------------------------------------- obstacles
+    if (this.levelDef.obstacles) {
+      this.obstacleGroup = this.physics.add.staticGroup()
+      this.obstacles = new ObstacleField(this.obstacleGroup, this.levelDef.obstacles)
+      this.physics.add.collider(this.player, this.obstacleGroup)
+      this.physics.add.collider(this.enemyGroup, this.obstacleGroup)
+      this.physics.add.overlap(this.shotGroup, this.obstacleGroup, this.onShotHitsObstacle, undefined, this)
+      this.physics.add.overlap(this.foeShotGroup, this.obstacleGroup, this.onShotHitsObstacle, undefined, this)
+    }
+
     this.timedEvents = this.buildTimeline()
     this.scene.launch('Hud')
     wakeLock.acquire()
@@ -271,6 +273,8 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.applyZoom, this)
       wakeLock.release()
+      this.obstacles?.destroy()
+      this.obstacles = undefined
       this.scene.stop('Hud')
     })
   }
@@ -409,7 +413,10 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     }
   }
 
-  castBeam(x: number, y: number, angle: number, length: number, halfWidth: number, damage: number): void {
+  castBeam(x: number, y: number, angle: number, rawLength: number, halfWidth: number, damage: number): void {
+    // Bushes are opaque: a beam that carried on through one would look wrong and
+    // would quietly ignore the level's cover.
+    const length = this.obstacles?.rayDistance(x, y, angle, rawLength) ?? rawLength
     const fx = this.add
       .image(x, y, 'fx-beam')
       .setOrigin(0, 0.5)
@@ -451,6 +458,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     const seconds = this.elapsedMs / 1000
 
     this.updateView()
+    this.obstacles?.update(this.viewRect)
     this.updatePlayer()
     this.runTimeline(seconds)
     this.spawnWave(dt, seconds)
@@ -489,7 +497,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     this.backdrop.setPosition(view.centerX, view.centerY)
     // tilePosition is in texture pixels, so the world offset has to be divided
     // by the tile scale to keep the meadow pinned to the world as it scrolls.
-    this.backdrop.setTilePosition(view.x / MEADOW_TILE_SCALE, view.y / MEADOW_TILE_SCALE)
+    this.backdrop.setTilePosition(view.x / this.levelDef.tileScale, view.y / this.levelDef.tileScale)
   }
 
   private get hud(): HudScene {
@@ -530,15 +538,22 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
 
   // ----------------------------------------------------------------- spawning
 
+  /** Turns the level's scripted moments into callbacks, in time order. */
   private buildTimeline(): TimedEvent[] {
-    return [
-      { at: 60, fn: () => this.spawnRing('grumpySnail', 12) },
-      { at: MINIBOSS_TIME, fn: () => this.spawnMiniboss() },
-      { at: 150, fn: () => this.spawnRing('bumblingBee', 14) },
-      { at: 185, fn: () => this.hud.showBanner('The clouds are sulking!', P.sky) },
-      { at: 210, fn: () => this.spawnRing('crankyAcorn', 10) },
-      { at: BOSS_TIME, fn: () => this.spawnBoss() },
-    ]
+    return this.levelDef.events
+      .map((event): TimedEvent => {
+        switch (event.kind) {
+          case 'ring':
+            return { at: event.at, fn: () => this.spawnRing(event.enemy, event.count) }
+          case 'miniboss':
+            return { at: event.at, fn: () => this.spawnMiniboss() }
+          case 'boss':
+            return { at: event.at, fn: () => this.spawnBoss() }
+          case 'banner':
+            return { at: event.at, fn: () => this.hud.showBanner(event.text, event.color) }
+        }
+      })
+      .sort((a, b) => a.at - b.at)
   }
 
   private runTimeline(seconds: number): void {
@@ -553,12 +568,12 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
   }
 
   private spawnWave(dt: number, seconds: number): void {
-    const { rate, pool } = activeWaves(seconds)
+    const { rate, pool } = activeWaves(seconds, this.levelDef.waves)
     if (pool.length === 0) return
     this.spawnAccumulator += (rate * dt) / 1000
     while (this.spawnAccumulator >= 1) {
       this.spawnAccumulator -= 1
-      if (this.liveEnemyCount() >= MAX_LIVE_ENEMIES) break
+      if (this.liveEnemyCount() >= this.levelDef.maxLive) break
       this.spawnEnemy(ENEMIES[pool[Math.floor(Math.random() * pool.length)]], Math.random() * Math.PI * 2)
     }
   }
@@ -571,32 +586,34 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     const y = this.player.y + Math.sin(angle) * ry
     const enemy = this.enemyGroup.get(x, y) as Enemy | null
     if (!enemy) return null
-    enemy.spawn(def, x, y, difficultyAt(this.elapsedMs / 1000))
+    enemy.spawn(def, x, y, difficultyAt(this.elapsedMs / 1000, this.levelDef.ramp))
     return enemy
   }
 
   private spawnRing(id: EnemyId, count: number): void {
     for (let i = 0; i < count; i++) {
-      if (this.liveEnemyCount() >= MAX_LIVE_ENEMIES) break
+      if (this.liveEnemyCount() >= this.levelDef.maxLive) break
       this.spawnEnemy(ENEMIES[id], (i / count) * Math.PI * 2, 0.92)
     }
     this.hud.showBanner('Here they come!', P.pinkHot)
   }
 
   private spawnMiniboss(): void {
-    const gnome = this.spawnEnemy(ENEMIES.grumpyGnome, Math.random() * Math.PI * 2, 0.85)
+    const def = ENEMIES[this.levelDef.miniBoss]
+    const gnome = this.spawnEnemy(def, Math.random() * Math.PI * 2, 0.85)
     if (gnome) {
       this.boss = gnome
-      this.hud.showBanner('A Grumpy Gnome appears!', P.grumpRed)
+      this.hud.showBanner(`A ${def.name} appears!`, P.grumpRed)
       sfx.play('boss', 0)
     }
   }
 
   private spawnBoss(): void {
-    const boss = this.spawnEnemy(ENEMIES.sirFluffington, Math.random() * Math.PI * 2, 0.85)
+    const def = ENEMIES[this.levelDef.boss]
+    const boss = this.spawnEnemy(def, Math.random() * Math.PI * 2, 0.85)
     if (boss) {
       this.boss = boss
-      this.hud.showBanner('SIR FLUFFINGTON IS CROSS!', P.gold)
+      this.hud.showBanner(`${def.name.toUpperCase()} IS CROSS!`, P.gold)
       sfx.play('boss', 0)
       this.cameras.main.shake(400, 0.006)
     }
@@ -634,17 +651,29 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
       const ny = dy / dist
       const body = enemy.body
 
+      // A Grump that walked into a bush last frame sidesteps for a moment.
+      // Without this, anything heading straight at the player just presses into
+      // the bush forever and the forest becomes a set of safe pockets.
+      if (enemy.detourTimer <= 0 && !body.touching.none) {
+        enemy.detourTimer = 550
+        enemy.detourSign = enemy.uid % 2 === 0 ? 1 : -1
+      }
+      if (enemy.detourTimer > 0) enemy.detourTimer -= dt
+      const detour = enemy.detourTimer > 0 ? enemy.detourSign * 1.15 : 0
+
       switch (enemy.def.behavior) {
         case 'chase':
-        case 'split':
-          body.velocity.set(nx * enemy.speed, ny * enemy.speed)
+        case 'split': {
+          const angle = Math.atan2(dy, dx) + detour
+          body.velocity.set(Math.cos(angle) * enemy.speed, Math.sin(angle) * enemy.speed)
           break
+        }
 
         case 'drift': {
           // Wanders around its approach line so a swarm looks alive rather than
           // like a single arrow pointed at the player.
           const wobble = Math.sin((time + enemy.uid * 137) * 0.0035) * 0.9
-          const angle = Math.atan2(dy, dx) + wobble
+          const angle = Math.atan2(dy, dx) + wobble + detour
           body.velocity.set(Math.cos(angle) * enemy.speed, Math.sin(angle) * enemy.speed)
           break
         }
@@ -674,8 +703,10 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
 
         case 'shooter': {
           // Hovers at a polite distance and rains on you from there.
-          if (dist > 330) body.velocity.set(nx * enemy.speed, ny * enemy.speed)
-          else if (dist < 210) body.velocity.set(-nx * enemy.speed, -ny * enemy.speed)
+          if (dist > 330) {
+            const angle = Math.atan2(dy, dx) + detour
+            body.velocity.set(Math.cos(angle) * enemy.speed, Math.sin(angle) * enemy.speed)
+          } else if (dist < 210) body.velocity.set(-nx * enemy.speed, -ny * enemy.speed)
           else body.velocity.set(-ny * enemy.speed * 0.8, nx * enemy.speed * 0.8)
 
           enemy.behaviorTimer -= dt
@@ -700,7 +731,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
       vx: nx * speed,
       vy: ny * speed,
       damage: Math.round(
-        (enemy.def.shootDamage ?? 8) * difficultyAt(this.elapsedMs / 1000).damage,
+        (enemy.def.shootDamage ?? 8) * difficultyAt(this.elapsedMs / 1000, this.levelDef.ramp).damage,
       ),
       pierce: 0,
       lifespan: 5000,
@@ -933,7 +964,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
         sfx.play('heart', 45)
         break
       case 'sprinkle':
-        this.sprinklesCollected += pickup.value * this.statBlock.sprinkleMult
+        this.sprinklesCollected += pickup.value * this.statBlock.sprinkleMult * this.levelDef.sprinkleMult
         sfx.play('coin', 55)
         break
       case 'snack':
@@ -967,6 +998,14 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     } else {
       shot.pierceLeft -= 1
     }
+  }
+
+  /** Bushes stop every projectile, whoever fired it. */
+  private onShotHitsObstacle: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback = (a) => {
+    const shot = a as Shot
+    if (!shot.active) return
+    this.puffs.emitParticleAt(shot.x, shot.y, 2)
+    shot.retire()
   }
 
   private onEnemyTouchesPlayer: Phaser.Types.Physics.Arcade.ArcadePhysicsCallback = (_player, b) => {
@@ -1025,7 +1064,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
 
     if (def.splitInto && def.splitCount) {
       const spawn = ENEMIES[def.splitInto]
-      const diff = difficultyAt(this.elapsedMs / 1000)
+      const diff = difficultyAt(this.elapsedMs / 1000, this.levelDef.ramp)
       for (let i = 0; i < def.splitCount; i++) {
         const child = this.enemyGroup.get(x, y) as Enemy | null
         if (!child) break
@@ -1179,10 +1218,18 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
 
     const survivedSec = Math.floor(this.elapsedMs / 1000)
     const bonus = Math.floor(this.kills * 0.35) + (won ? 200 : 0)
-    const earned = Math.floor(this.sprinklesCollected + bonus * this.statBlock.sprinkleMult)
+    const earned = Math.floor(
+      this.sprinklesCollected + bonus * this.statBlock.sprinkleMult * this.levelDef.sprinkleMult,
+    )
 
     const before = loadSave()
-    const after = applyRunResult(before, { sprinkles: earned, survivedSec, kills: this.kills, won })
+    const after = applyRunResult(before, {
+      levelId: this.levelDef.id,
+      sprinkles: earned,
+      survivedSec,
+      kills: this.kills,
+      won,
+    })
     writeSave(after)
 
     sfx.play(won ? 'win' : 'lose', 0)
@@ -1190,6 +1237,9 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     this.scene.start('Result', {
       won,
       quit,
+      levelId: this.levelDef.id,
+      levelName: this.levelDef.name,
+      unlockedLevel: won ? this.newlyUnlockedLevel(before, after) : null,
       survivedSec,
       kills: this.kills,
       earned,
@@ -1230,6 +1280,14 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     const inset = 30
     state.onScreen = Math.abs(dx) < w / 2 - inset && Math.abs(dy) < h / 2 - inset
     return state
+  }
+
+  /** The level this win has just opened up, if any, for the results screen. */
+  private newlyUnlockedLevel(before: SaveData, after: SaveData): string | null {
+    for (const id of LEVEL_IDS) {
+      if (!isLevelUnlocked(before, id) && isLevelUnlocked(after, id)) return LEVELS[id].name
+    }
+    return null
   }
 
   private syncUi(seconds: number): void {

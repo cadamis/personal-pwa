@@ -8,6 +8,7 @@
  * "can I afford this?" logic testable without touching localStorage.
  */
 import { CHARACTERS, STARTER_CHARACTER, toCharacterId, type CharacterId } from '../data/characters'
+import { LEVELS, LEVEL_IDS, STARTER_LEVEL, toLevelId, type LevelId } from '../data/levels'
 import { METAS, META_IDS, metaCost, type MetaId } from '../data/meta'
 
 const STORAGE_KEY = 'cuteness-overload/save/v1'
@@ -21,8 +22,11 @@ export interface SaveData {
   /** Longest survival in seconds. */
   bestTimeSec: number
   bestKills: number
-  /** Times Sir Fluffington has been out-cuted. */
+  /** Total boss defeats, across every level. */
   wins: number
+  /** Boss defeats per level. This is what unlocks later levels. */
+  levelWins: Partial<Record<LevelId, number>>
+  lastLevel: LevelId
   runs: number
   muted: boolean
 }
@@ -36,6 +40,8 @@ export function defaultSave(): SaveData {
     bestTimeSec: 0,
     bestKills: 0,
     wins: 0,
+    levelWins: {},
+    lastLevel: STARTER_LEVEL,
     runs: 0,
     muted: false,
   }
@@ -84,6 +90,20 @@ export function parseSave(raw: string | null): SaveData {
 
   base.lastCharacter = toCharacterId(data.lastCharacter)
   if (!base.unlocked.includes(base.lastCharacter)) base.lastCharacter = STARTER_CHARACTER
+
+  const levelWins = data.levelWins
+  if (typeof levelWins === 'object' && levelWins !== null) {
+    for (const id of LEVEL_IDS) {
+      const count = Math.max(0, Math.floor(num((levelWins as Record<string, unknown>)[id], 0)))
+      if (count > 0) base.levelWins[id] = count
+    }
+  } else if (base.wins > 0) {
+    // Saves from before there was more than one level: every win was the meadow.
+    base.levelWins[STARTER_LEVEL] = base.wins
+  }
+
+  base.lastLevel = toLevelId(data.lastLevel)
+  if (!isLevelUnlocked(base, base.lastLevel)) base.lastLevel = STARTER_LEVEL
 
   return base
 }
@@ -156,7 +176,23 @@ export function tryUnlockCharacter(save: SaveData, id: CharacterId): SaveData | 
   }
 }
 
+/**
+ * A level is playable once its prerequisite level's boss has been beaten. Levels
+ * without a prerequisite are always available.
+ */
+export function isLevelUnlocked(save: SaveData, id: LevelId): boolean {
+  const required = LEVELS[id].unlockedBy
+  if (!required) return true
+  return (save.levelWins[required] ?? 0) > 0
+}
+
+/** Every level the player can currently choose. */
+export function unlockedLevels(save: SaveData): LevelId[] {
+  return LEVEL_IDS.filter((id) => isLevelUnlocked(save, id))
+}
+
 export interface RunResult {
+  levelId: LevelId
   sprinkles: number
   survivedSec: number
   kills: number
@@ -165,12 +201,16 @@ export interface RunResult {
 
 /** Folds a finished run's takings and records into the save. */
 export function applyRunResult(save: SaveData, result: RunResult): SaveData {
+  const levelWins = { ...save.levelWins }
+  if (result.won) levelWins[result.levelId] = (levelWins[result.levelId] ?? 0) + 1
   return {
     ...save,
     sprinkles: save.sprinkles + Math.max(0, Math.floor(result.sprinkles)),
     bestTimeSec: Math.max(save.bestTimeSec, result.survivedSec),
     bestKills: Math.max(save.bestKills, result.kills),
     wins: save.wins + (result.won ? 1 : 0),
+    levelWins,
+    lastLevel: result.levelId,
     runs: save.runs + 1,
   }
 }

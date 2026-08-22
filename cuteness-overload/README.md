@@ -20,9 +20,14 @@ deployed, or `npm run dev` locally.
   if you're lucky) — tap one.
 - **Sprinkles** 🍬 are the meta currency. They're kept whether you win or lose
   and spent in the Sprinkle Shop between runs.
-- A run is five minutes. The Grumpy Gnome turns up at 2:00 and **Sir
-  Fluffington** at 4:00 — squish him to win. The meadow is much bigger than the
-  screen, so while a boss is off-screen a badge on the edge points at it.
+- A run is five minutes. A mini-boss turns up at around 2:00 and the level's
+  **boss** at 4:00 — squish it to win. The level is much bigger than the screen,
+  so while a boss is off-screen a badge on the edge points at it.
+- Two levels. **Snuggle Meadow** is open from the start; beating Sir Fluffington
+  there unlocks **Grumbly Forest**, which is denser, ramps harder, is full of
+  bushes that block movement and every projectile on both sides, and finishes
+  with **Grumpy Monkey**. The forest also pays twice as many sprinkles — the
+  meadow is deliberately stingy, and moving on is how you speed the shop up.
 
 ## Shape of the code
 
@@ -35,9 +40,10 @@ src/
     textures.ts        one painter per sprite + the texture registry
   audio/sfx.ts         WebAudio blips, synthesised (no audio files either)
   data/                pure data, no Phaser: characters, weapons, passives,
-                       enemies/waves, shop upgrades
+                       enemies, levels, shop upgrades
   game/                pure logic, no Phaser: stats, save, loadout, level-up
-                       pool, the weapon system, and the pooled entities
+                       pool, the weapon system, the obstacle streamer, and the
+                       pooled entities
   scenes/              Boot, Menu, Shop, Game, Hud, LevelUp, Pause, Result
   ui/                  Button, Joystick, theme and layout helpers
 ```
@@ -56,6 +62,20 @@ still read during a busy fight. **The backdrop is deliberately almost
 featureless**: a handful of enormous, very low-contrast soft patches. Anything
 small on it — tufts, flowers, a checker — turns into visual noise the moment a
 hundred Grumps and several hundred projectiles are moving across it.
+
+**A level is data.** `data/levels.ts` holds the wave table, the scripted events
+(rings, mini-boss, boss, banners), the difficulty ramp, the backdrop, the payout
+multiplier and the unlock rule. `GameScene` reads all of it, so another level is
+another entry — the only thing that needed real code was obstacles.
+
+**Obstacles are streamed, not placed.** The world is endless, so there's no
+layout to generate up front and nowhere to keep one. `game/obstacles.ts` makes a
+cell's contents a pure hash of its coordinates: walk away and back and the same
+bushes are there, and a bush can never appear on top of you because a cell only
+materialises off-screen. Two knock-on effects worth knowing: enemies that walk
+into a bush sidestep for half a second (`Enemy.detourTimer`) or a chaser presses
+into it forever and the forest becomes a set of safe pockets, and beams are
+truncated by `ObstacleField.rayDistance` so they don't shine through cover.
 
 **The HUD is its own scene.** The game camera zooms so that every device sees a
 fair slice of meadow, and a zoomed camera fights any UI drawn in the same scene.
@@ -118,8 +138,13 @@ something to tune on:
 
 | | fresh save | after a few shop upgrades |
 |---|---|---|
-| never touches the screen | 25–122s | — |
-| moving | 67–121s | 242–263s, i.e. into the boss fight |
+| meadow, never touches the screen | 25–122s | — |
+| meadow, moving | 67–121s | 239–261s, i.e. into the boss fight |
+| forest, moving | 37–74s | 240–300s |
+
+Sprinkles per run follow from that: roughly 15–40 in the meadow on a fresh save,
+against 400-odd in the forest with upgrades. The meadow's `sprinkleMult` of 0.5
+applies to both the pickups and the end-of-run bonus.
 
 Two rules follow from that and are easy to break by accident:
 

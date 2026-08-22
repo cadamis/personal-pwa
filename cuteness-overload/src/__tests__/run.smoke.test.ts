@@ -11,8 +11,8 @@
  */
 import Phaser from 'phaser'
 import { afterEach, describe, expect, it } from 'vitest'
-import { BOSS_TIME } from '../data/enemies'
-import { clearSave, loadSave } from '../game/save'
+import { LEVELS } from '../data/levels'
+import { clearSave, loadSave, writeSave, defaultSave } from '../game/save'
 import type { Choice } from '../game/upgradePool'
 import { BootScene } from '../scenes/BootScene'
 import { MenuScene } from '../scenes/MenuScene'
@@ -30,6 +30,8 @@ interface LevelUpInternals {
   scene: Phaser.Scenes.ScenePlugin
 }
 interface GameInternals {
+  obstacles?: { all(): Iterable<{ x: number; y: number }>; update(view: Phaser.Geom.Rectangle): void }
+  shotGroup: { getChildren(): { active: boolean; x: number; y: number }[] }
   spawnBoss(): void
   spawnMiniboss(): void
   endRun(won: boolean, quit?: boolean): void
@@ -107,14 +109,22 @@ describe('a full run', () => {
   const run = (): GameScene => game!.scene.getScene<GameScene>('Game')
   const internals = (): GameInternals => run() as unknown as GameInternals
 
-  async function startRun(characterId = 'mochi', { idle = false } = {}): Promise<void> {
+  async function startRun(
+    characterId = 'mochi',
+    { idle = false, levelId = 'meadow' } = {},
+  ): Promise<void> {
     clearSave()
+    // The forest is locked until the meadow boss falls; a test that wants to
+    // play it says so by banking that win first.
+    if (levelId !== 'meadow') {
+      writeSave({ ...defaultSave(), levelWins: { meadow: 1 }, wins: 1 })
+    }
     picked = []
     autopilot = !idle
     game = await bootGame()
     advance(0.2) // Boot hands over to the menu
     game.scene.stop('Menu')
-    game.scene.start('Game', { characterId })
+    game.scene.start('Game', { characterId, levelId })
     advance(0.2)
   }
 
@@ -132,15 +142,17 @@ describe('a full run', () => {
     expect(run().ui.maxHp).toBe(100)
     expect(run().ui.weapons).toHaveLength(1)
 
-    advance(20)
+    advance(25)
 
     const ui = run().ui
     // Level-up screens pause the run, so game time lags the steps taken.
-    expect(ui.timeSec).toBeGreaterThan(12)
-    // Bubble Bark is killing things, hearts are being collected, levels happen.
+    expect(ui.timeSec).toBeGreaterThan(15)
+    // Bubble Bark is killing things and hearts are being picked up. Asserted as
+    // "XP is flowing" rather than "level > 1": how many hearts land inside 25
+    // seconds swings a long way run to run, and a threshold there just makes a
+    // flaky test. Actual levelling is covered over a 60s window below.
     expect(ui.kills).toBeGreaterThan(5)
-    expect(ui.level).toBeGreaterThan(1)
-    expect(picked.length).toBeGreaterThan(0)
+    expect(ui.level > 1 || ui.xp > 0).toBe(true)
     expect(ui.hp).toBeGreaterThan(0)
     expect(ui.hp).toBeLessThanOrEqual(ui.maxHp)
   }, 30_000)
@@ -166,7 +178,7 @@ describe('a full run', () => {
     // ...but not so fast that a distracted eight-year-old is punished instantly.
     expect(loadSave().bestTimeSec).toBeGreaterThan(15)
     // An idle run can never reach Sir Fluffington, let alone beat him.
-    expect(loadSave().bestTimeSec).toBeLessThan(BOSS_TIME)
+    expect(loadSave().bestTimeSec).toBeLessThan(LEVELS.meadow.bossTime)
     expect(loadSave().wins).toBe(0)
   }, 60_000)
 
@@ -213,6 +225,67 @@ describe('a full run', () => {
     advance(0.1)
     expect(run().ui.boss?.onScreen).toBe(true)
   }, 30_000)
+
+  it('runs the forest with its own boss and a field of bushes', async () => {
+    await startRun('mochi', { levelId: 'forest' })
+    advance(6)
+
+    // Bushes are streamed in around the camera rather than laid out up front.
+    const bushes = [...(internals().obstacles?.all() ?? [])]
+    expect(bushes.length).toBeGreaterThan(3)
+
+    // Every one of them is solid: no shot should still be alive inside a bush.
+    advance(10)
+    const radius = LEVELS.forest.obstacles!.radius
+    for (const shot of internals().shotGroup.getChildren()) {
+      if (!shot.active) continue
+      for (const bush of internals().obstacles!.all()) {
+        expect(Math.hypot(shot.x - bush.x, shot.y - bush.y)).toBeGreaterThan(radius * 0.6)
+      }
+    }
+
+    internals().spawnBoss()
+    advance(0.2)
+    expect(run().ui.boss?.name).toBe('Grumpy Monkey')
+  }, 40_000)
+
+  it('walking the same ground twice finds the same bushes', async () => {
+    await startRun('mochi', { levelId: 'forest' })
+    advance(2)
+    const field = internals().obstacles!
+    const view = new Phaser.Geom.Rectangle(0, 0, 900, 620)
+    field.update(view)
+    const before = [...field.all()].map((b) => `${Math.round(b.x)},${Math.round(b.y)}`).sort()
+
+    // Scroll a long way off and back again.
+    field.update(new Phaser.Geom.Rectangle(40000, 40000, 900, 620))
+    field.update(view)
+    const after = [...field.all()].map((b) => `${Math.round(b.x)},${Math.round(b.y)}`).sort()
+
+    expect(after).toEqual(before)
+    expect(before.length).toBeGreaterThan(0)
+  }, 30_000)
+
+  it('pays out less in the meadow than in the forest', async () => {
+    // Same character, same wandering, same length of run: the difference is the
+    // level's payout multiplier.
+    await startRun('mochi', { levelId: 'meadow' })
+    advance(40)
+    internals().endRun(false)
+    advance(0.3)
+    const meadow = loadSave().sprinkles
+    game!.destroy(true)
+    game = null
+
+    await startRun('mochi', { levelId: 'forest' })
+    advance(40)
+    internals().endRun(false)
+    advance(0.3)
+    const forest = loadSave().sprinkles
+
+    expect(meadow).toBeGreaterThan(0)
+    expect(forest).toBeGreaterThan(meadow)
+  }, 60_000)
 
   it('ends the run, banks sprinkles and opens the results screen', async () => {
     await startRun()

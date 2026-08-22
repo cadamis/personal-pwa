@@ -3,8 +3,10 @@ import { ART_SCALE } from '../art/textures'
 import { P } from '../art/palette'
 import { sfx } from '../audio/sfx'
 import { CHARACTERS, CHARACTER_IDS, type CharacterId } from '../data/characters'
+import { ENEMIES } from '../data/enemies'
+import { LEVELS, LEVEL_IDS, type LevelId } from '../data/levels'
 import { WEAPONS } from '../data/weapons'
-import { loadSave, tryUnlockCharacter, writeSave, type SaveData } from '../game/save'
+import { isLevelUnlocked, loadSave, tryUnlockCharacter, writeSave, type SaveData } from '../game/save'
 import { Button } from '../ui/Button'
 import { rebuildOnResize, uiScale } from '../ui/layout'
 import { drawMenuBackdrop, drawPanel, textStyle } from '../ui/theme'
@@ -13,6 +15,7 @@ import { drawMenuBackdrop, drawPanel, textStyle } from '../ui/theme'
 export class MenuScene extends Phaser.Scene {
   private save: SaveData = loadSave()
   private index = 0
+  private levelId: LevelId = 'meadow'
   private root!: Phaser.GameObjects.Container
 
   constructor() {
@@ -22,6 +25,7 @@ export class MenuScene extends Phaser.Scene {
   create(): void {
     this.save = loadSave()
     this.index = Math.max(0, CHARACTER_IDS.indexOf(this.save.lastCharacter))
+    this.levelId = this.save.lastLevel
     this.root = this.add.container(0, 0)
     this.build()
     rebuildOnResize(this, () => this.rebuild())
@@ -155,15 +159,19 @@ export class MenuScene extends Phaser.Scene {
     const hintH = 24 * s
     const shopY = h - hintH - shopH / 2 - 6 * s
     const btnY = shopY - shopH / 2 - btnH / 2 - 12 * s
+    const levelRowH = 56 * s
+    const levelRowY = btnY - btnH / 2 - levelRowH / 2 - 10 * s
 
     // ------------------------------------------------------- character panel
     const def = CHARACTERS[this.selectedId]
     const unlocked = this.save.unlocked.includes(def.id)
     const panelW = Math.min(w - 40 * s, 520 * s)
-    const panelH = Math.min(h * 0.4, 250 * s)
     const panelX = w / 2 - panelW / 2
     const titleBottom = titleY + 84 * s
-    const panelSpace = btnY - btnH / 2 - 30 * s - titleBottom
+    const panelSpace = levelRowY - levelRowH / 2 - 18 * s - titleBottom
+    // Clamped to the space actually left over: unclamped, a short screen grew the
+    // panel straight down through the level picker.
+    const panelH = Math.min(h * 0.4, 250 * s, Math.max(120 * s, panelSpace))
     const panelY = titleBottom + Math.max(0, (panelSpace - panelH) / 2)
     const panel = add(this.add.graphics())
     drawPanel(panel, panelX, panelY, panelW, panelH, { fill: P.panel, edge: P.panelEdge })
@@ -244,6 +252,62 @@ export class MenuScene extends Phaser.Scene {
       )
     })
 
+    // ------------------------------------------------------------ level picker
+    const pickerW = Math.min(w - 32 * s, 460 * s)
+    const cellW = (pickerW - 10 * s) / LEVEL_IDS.length
+    LEVEL_IDS.forEach((id, i) => {
+      const level = LEVELS[id]
+      const open = isLevelUnlocked(this.save, id)
+      const chosen = id === this.levelId
+      const cx = w / 2 - pickerW / 2 + cellW / 2 + i * (cellW + 10 * s)
+      const pill = add(this.add.container(cx, levelRowY))
+      const bg = this.add.graphics()
+      drawPanel(bg, -cellW / 2, -levelRowH / 2, cellW, levelRowH, {
+        fill: chosen ? P.lemon : P.nightSoft,
+        edge: chosen ? P.gold : P.inkSoft,
+        radius: 14 * s,
+        shadow: false,
+      })
+      pill.add(bg)
+      pill.add(
+        this.add
+          .text(
+            0,
+            -levelRowH * 0.14,
+            `${open ? level.icon : '🔒'} ${level.name}`,
+            textStyle({ size: Math.min(18 * s, cellW * 0.11), color: chosen ? P.ink : P.white, bold: true }),
+          )
+          .setOrigin(0.5),
+      )
+      pill.add(
+        this.add
+          .text(
+            0,
+            levelRowH * 0.24,
+            open ? level.blurb : `Beat ${ENEMIES[LEVELS[level.unlockedBy!].boss].name} to open this up!`,
+            textStyle({
+              size: Math.min(11 * s, cellW * 0.065),
+              color: chosen ? P.inkSoft : P.lavender,
+              wrap: cellW - 14 * s,
+            }),
+          )
+          .setOrigin(0.5),
+      )
+      if (open) {
+        pill.setSize(cellW, levelRowH)
+        pill.setInteractive(new Phaser.Geom.Rectangle(0, 0, cellW, levelRowH), Phaser.Geom.Rectangle.Contains)
+        pill.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => {
+          if (this.levelId === id) return
+          this.levelId = id
+          sfx.unlock()
+          sfx.play('tap')
+          this.rebuild()
+        })
+      } else {
+        pill.setAlpha(0.75)
+      }
+    })
+
     if (unlocked) {
       add(
         new Button(this, w / 2, btnY, {
@@ -303,9 +367,9 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private startRun(): void {
-    this.save = { ...this.save, lastCharacter: this.selectedId }
+    this.save = { ...this.save, lastCharacter: this.selectedId, lastLevel: this.levelId }
     writeSave(this.save)
-    this.scene.start('Game', { characterId: this.selectedId })
+    this.scene.start('Game', { characterId: this.selectedId, levelId: this.levelId })
   }
 }
 
