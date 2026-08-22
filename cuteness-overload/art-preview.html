@@ -14,7 +14,7 @@
     </style>
   </head>
   <body>
-    <canvas id="c" width="900" height="620"></canvas>
+    <canvas id="c" width="900" height="820"></canvas>
     <script type="module">
       import { PAINTERS } from './src/art/textures.ts'
 
@@ -57,6 +57,39 @@
       for (let i = 0; i < 7; i++) put('prop-bush', 500 + (i % 3) * 150, 90 + Math.floor(i / 3) * 190)
       put('foe-monkey', 700, 470, 2.3)
       put('char-mochi', 450, 310)
+
+      // The umbrella at four headings, drawn the way GameScene places it: the
+      // player runs one way, the canopy sits on the opposite side.
+      const brolly = (px, py, fx, fy) => {
+        const zoom = 2.5
+        const cvP = canvasFor('char-mochi')
+        ctx.drawImage(cvP, px - cvP.width * 0.25 * zoom, py - cvP.height * 0.25 * zoom, cvP.width * 0.5 * zoom, cvP.height * 0.5 * zoom)
+        const angle = Math.atan2(-fy, -fx)
+        const cv = canvasFor('prop-umbrella')
+        ctx.save()
+        ctx.translate(px + Math.cos(angle) * 26 * zoom, py + Math.sin(angle) * 26 * zoom)
+        ctx.rotate(angle)
+        ctx.drawImage(cv, -cv.width * 0.25 * zoom, -cv.height * 0.25 * zoom, cv.width * 0.5 * zoom, cv.height * 0.5 * zoom)
+        ctx.restore()
+        // an arrow showing which way the player is running
+        ctx.save()
+        ctx.strokeStyle = '#2b1f3a'
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.moveTo(px, py)
+        ctx.lineTo(px + fx * 46 * zoom, py + fy * 46 * zoom)
+        ctx.stroke()
+        ctx.restore()
+      }
+      // A clean strip below the crowd, at 2.5x, so the orientation is legible.
+      ctx.fillStyle = '#2b1f3a'
+      ctx.fillRect(0, 620, 900, 200)
+      ctx.fillStyle = '#96c288'
+      ctx.fillRect(10, 630, 880, 180)
+      brolly(140, 720, 1, 0)
+      brolly(360, 720, -1, 0)
+      brolly(580, 720, 0, 1)
+      brolly(790, 720, 0.7, -0.7)
 
       // The off-screen boss badge, at eight headings, drawn the way HudScene
       // composes it: translucent disc, boss face, chevron pointing outward.

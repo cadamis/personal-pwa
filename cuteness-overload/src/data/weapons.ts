@@ -2,8 +2,8 @@
  * Every weapon in the game, as data. The GameScene's weapon system reads
  * `behavior` to decide how to fire; nothing here knows about Phaser.
  *
- * Eleven behaviours cover twelve weapons, so a new weapon is usually just a new
- * entry in this file rather than new code.
+ * Twelve behaviours cover thirteen weapons, so a new weapon is usually just a
+ * new entry in this file rather than new code.
  */
 
 export type WeaponBehavior =
@@ -33,6 +33,11 @@ export type WeaponBehavior =
   | 'bounce'
   /** Shots that fall from the top of the screen at random spots. */
   | 'rain'
+  /**
+   * A timed blocker held behind the player. Deals no damage; it eats incoming
+   * enemy projectiles for `duration`, then goes away until the cooldown is up.
+   */
+  | 'shield'
 
 /**
  * Per-level tuning. What `area` and `speed` mean depends on the behaviour:
@@ -45,10 +50,17 @@ export type WeaponBehavior =
  * | nova      | blast radius in px        | (unused)              |
  * | beam      | beam half-thickness in px | (unused)              |
  * | turret    | turret's shot scale       | turret's shot speed   |
+ * | shield    | blocking radius in px     | (unused)              |
  */
 export interface WeaponLevel {
   damage: number
-  /** Milliseconds between casts. Divided by the player's haste. */
+  /**
+   * Milliseconds between casts, divided by the player's haste.
+   *
+   * For `shield` this is the gap *after* it closes rather than cast-to-cast, so
+   * "1s up, 8s cooldown" is duration 1000 and cooldown 8000. Every other
+   * behaviour casts instantly, where the two readings are the same thing.
+   */
   cooldown: number
   /** Shots (or satellites) per cast, before `extraProjectiles`. */
   count: number
@@ -56,7 +68,10 @@ export interface WeaponLevel {
   speed: number
   /** Extra enemies a shot can hit before dying. 0 = dies on first hit. */
   pierce: number
-  /** Lifetime in ms for `spin` / `turret`; travel distance in px for `boomerang`. */
+  /**
+   * Lifetime in ms for `spin` / `turret` / `shield`; travel distance in px for
+   * `boomerang`.
+   */
   duration?: number
   /** What the player sees on the level-up card for reaching this level. */
   note: string
@@ -77,6 +92,7 @@ export interface WeaponDef {
 
 export type WeaponId =
   | 'bubbleBark'
+  | 'braveBrolly'
   | 'sparkleSwipe'
   | 'snuggleSpikes'
   | 'carrotBoomerang'
@@ -103,6 +119,21 @@ const WEAPON_LIST: readonly WeaponDef[] = [
       { damage: 16, cooldown: 620, count: 2, area: 1.15, speed: 360, pierce: 1, note: 'Bubbles pop through 1 extra Grump' },
       { damage: 20, cooldown: 560, count: 3, area: 1.25, speed: 375, pierce: 1, note: '+1 bubble, bigger' },
       { damage: 26, cooldown: 500, count: 4, area: 1.4, speed: 395, pierce: 2, note: '+1 bubble, pops through 2' },
+    ],
+  },
+  {
+    id: 'braveBrolly',
+    name: 'Brave Brolly',
+    icon: '☂️',
+    blurb: 'Pops open behind you and bonks the rain away. Only three sizes!',
+    behavior: 'shield',
+    texture: 'prop-umbrella',
+    // The only weapon with three levels rather than five, and the only one that
+    // deals no damage at all — it buys you safety instead.
+    levels: [
+      { damage: 0, cooldown: 8000, count: 1, area: 34, speed: 0, pierce: 0, duration: 1000, note: 'Up for 1s, then 8s to dry off.' },
+      { damage: 0, cooldown: 7000, count: 1, area: 39, speed: 0, pierce: 0, duration: 1500, note: 'Up for 1.5s, only 7s to dry off' },
+      { damage: 0, cooldown: 6000, count: 1, area: 45, speed: 0, pierce: 0, duration: 2000, note: 'Up for 2s, only 6s to dry off' },
     ],
   },
   {

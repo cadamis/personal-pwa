@@ -83,11 +83,19 @@ fair slice of meadow, and a zoomed camera fights any UI drawn in the same scene.
 the touch stick, which is why `GameScene` asks the HUD for its movement vector
 rather than reading input directly.
 
-**Adding a weapon** is usually just a new entry in `data/weapons.ts`: eleven
+**Adding a weapon** is usually just a new entry in `data/weapons.ts`: twelve
 behaviours (homing, aimed, arc, orbit, spin, boomerang, nova, beam, turret,
-bounce, rain) cover the twelve that exist, and `game/weaponSystem.ts` maps a
-behaviour onto requests against a `WeaponHost`. Only reach for new code if none of
-the eleven fit.
+bounce, rain, shield) cover the thirteen that exist, and `game/weaponSystem.ts`
+maps a behaviour onto requests against a `WeaponHost`. Only reach for new code if
+none of the twelve fit.
+
+Two entries break the mould that the rest share, and the tests know about both.
+**Brave Brolly** is the only weapon with three levels rather than five and the
+only one that deals no damage — it's a timed umbrella carried on the far side of
+the player from wherever they're heading, which eats enemy projectiles (and only
+enemy ones; blocking your own bubbles would make it a downgrade). Its `cooldown`
+is also the wait *after* it closes rather than cast-to-cast, so "1s up, 8s
+cooldown" reads literally in the data and `cycleMs` adds the up-time back on.
 
 Note `aimed` vs `homing`: an aimed shot is fired *at* the nearest Grump and then
 flies straight, so it can miss. Only Kitten Missiles actually tracks. Mochi's

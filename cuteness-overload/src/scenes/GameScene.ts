@@ -7,7 +7,16 @@ import { CHARACTERS, toCharacterId, type CharacterId } from '../data/characters'
 import { ENEMIES, MAX_LIVE_ENEMIES, activeWaves, type EnemyDef, type EnemyId } from '../data/enemies'
 import { LEVELS, LEVEL_IDS, toLevelId, type LevelDef } from '../data/levels'
 import { WEAPONS } from '../data/weapons'
-import { Enemy, Orbiter, Pickup, Shot, Turret, setCircleBody, type PickupKind } from '../game/entities'
+import {
+  Enemy,
+  Orbiter,
+  Pickup,
+  Shield,
+  Shot,
+  Turret,
+  setCircleBody,
+  type PickupKind,
+} from '../game/entities'
 import { computeStats, emptyInventory, grantPassive, grantWeapon, type Inventory } from '../game/loadout'
 import { applyRunResult, isLevelUnlocked, loadSave, writeSave, type SaveData } from '../game/save'
 import { difficultyAt, xpToNext, type Stats } from '../game/stats'
@@ -15,6 +24,7 @@ import { SNACK_HEAL, STASH_SPRINKLES, choiceCount, rollChoices, type Choice } fr
 import {
   WeaponSystem,
   type OrbiterRequest,
+  type ShieldRequest,
   type ShotRequest,
   type TurretRequest,
   type WeaponHost,
@@ -101,6 +111,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
   private pickupGroup!: Phaser.GameObjects.Group
   private orbiterGroup!: Phaser.GameObjects.Group
   private turretGroup!: Phaser.GameObjects.Group
+  private shieldGroup!: Phaser.GameObjects.Group
   private obstacleGroup?: Phaser.Physics.Arcade.StaticGroup
   private obstacles?: ObstacleField
   private puffs!: Phaser.GameObjects.Particles.ParticleEmitter
@@ -209,6 +220,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     this.pickupGroup = this.add.group({ classType: Pickup, maxSize: 320, runChildUpdate: false })
     this.orbiterGroup = this.add.group({ classType: Orbiter, maxSize: 40, runChildUpdate: false })
     this.turretGroup = this.add.group({ classType: Turret, maxSize: 12, runChildUpdate: false })
+    this.shieldGroup = this.add.group({ classType: Shield, maxSize: 4, runChildUpdate: false })
 
     this.puffs = this.add.particles(0, 0, 'fx-puff', {
       lifespan: 380,
@@ -355,6 +367,22 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     }
   }
 
+  addShield(req: ShieldRequest): void {
+    const shield = this.shieldGroup.get(this.player.x, this.player.y) as Shield | null
+    if (!shield) return
+    shield.open(req)
+    this.positionShield(shield)
+    // Pops open rather than blinking into existence, so it's obvious it's up.
+    shield.setScale(shield.scale * 0.55)
+    this.tweens.add({
+      targets: shield,
+      scale: req.scale * ART_SCALE,
+      duration: 180,
+      ease: 'Back.easeOut',
+    })
+    sfx.play('snack', 120)
+  }
+
   addTurret(req: TurretRequest): void {
     const turret = this.turretGroup.get(req.x, req.y) as Turret | null
     if (!turret) return
@@ -467,6 +495,7 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
     this.updateFoeShots(dt)
     this.updateOrbiters(dt, time)
     this.updateTurrets(dt)
+    this.updateShields(dt)
     this.updatePickups(dt, time)
     this.weapons.update(dt)
 
@@ -812,12 +841,27 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
   }
 
   private updateFoeShots(dt: number): void {
+    const shields = this.shieldGroup.getChildren() as Shield[]
     for (const child of this.foeShotGroup.getChildren()) {
       const shot = child as Shot
       if (!shot.active) continue
       shot.lifespan -= dt
       const tooFar = Phaser.Math.Distance.Between(shot.x, shot.y, this.player.x, this.player.y) > 1200
-      if (shot.lifespan <= 0 || tooFar) shot.retire()
+      if (shot.lifespan <= 0 || tooFar) {
+        shot.retire()
+        continue
+      }
+      // Only *enemy* shots are checked here: an umbrella that also stopped the
+      // player's own bubbles would be a downgrade, not a treat.
+      for (const shield of shields) {
+        if (!shield.active) continue
+        const reach = shield.blockRadius
+        if ((shot.x - shield.x) ** 2 + (shot.y - shield.y) ** 2 > reach * reach) continue
+        this.puffs.emitParticleAt(shot.x, shot.y, 3)
+        sfx.play('pop', 60)
+        shot.retire()
+        break
+      }
     }
   }
 
@@ -919,6 +963,35 @@ export class GameScene extends Phaser.Scene implements WeaponHost {
         mode: 'straight',
         spin: 200,
       })
+    }
+  }
+
+  /**
+   * Keeps the umbrella parked behind the player, pointing away from wherever
+   * they're heading — so it's between them and anything chasing from behind.
+   */
+  private positionShield(shield: Shield): void {
+    const facing = this.facingVec
+    const angle = Math.atan2(-facing.y, -facing.x)
+    shield.setPosition(
+      this.player.x + Math.cos(angle) * shield.offset,
+      this.player.y + Math.sin(angle) * shield.offset,
+    )
+    shield.setRotation(angle)
+  }
+
+  private updateShields(dt: number): void {
+    for (const child of this.shieldGroup.getChildren()) {
+      const shield = child as Shield
+      if (!shield.active) continue
+      shield.lifespan -= dt
+      if (shield.lifespan <= 0) {
+        this.puffs.emitParticleAt(shield.x, shield.y, 4)
+        shield.retire()
+        continue
+      }
+      if (shield.lifespan < 300) shield.setAlpha(shield.lifespan / 300)
+      this.positionShield(shield)
     }
   }
 

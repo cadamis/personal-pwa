@@ -677,6 +677,63 @@ const cupcake: Painter = () => {
   return { ctx, ...rest }
 }
 
+/**
+ * The Brave Brolly.
+ *
+ * Drawn with the canopy bulging towards +x and the handle trailing at -x, so
+ * rotating the sprite to the angle the umbrella should *face* puts the canopy on
+ * the far side of the player and the handle in their paw.
+ */
+const umbrella: Painter = () => {
+  const { ctx, ...rest } = makeCanvas(56)
+  const cx = 22
+  const cy = 28
+  const span = 24
+
+  // handle, curling back towards the player
+  ctx.beginPath()
+  ctx.moveTo(cx - 2, cy)
+  ctx.lineTo(cx - 15, cy)
+  ctx.quadraticCurveTo(cx - 21, cy, cx - 20, cy + 6)
+  ctx.lineWidth = 4
+  ctx.strokeStyle = css(rim(P.grumpBrown))
+  ctx.stroke()
+  ctx.lineWidth = 2.4
+  ctx.strokeStyle = css(P.grumpBrown)
+  ctx.stroke()
+
+  // canopy: a half dome, panelled in alternating stripes
+  const panels = 5
+  for (let i = 0; i < panels; i++) {
+    const a0 = -Math.PI / 2 + (i / panels) * Math.PI
+    const a1 = -Math.PI / 2 + ((i + 1) / panels) * Math.PI
+    ctx.beginPath()
+    ctx.moveTo(cx, cy)
+    ctx.arc(cx, cy, span, a0, a1)
+    ctx.closePath()
+    ctx.fillStyle = css(i % 2 ? P.pinkHot : P.cream)
+    ctx.fill()
+    ctx.lineWidth = 1.4
+    ctx.strokeStyle = css(rim(P.pinkHot))
+    ctx.stroke()
+  }
+  // scalloped edge, so it reads as fabric rather than a pie chart
+  for (let i = 0; i < panels; i++) {
+    const a = -Math.PI / 2 + ((i + 0.5) / panels) * Math.PI
+    circle(ctx, cx + Math.cos(a) * span, cy + Math.sin(a) * span, 3.4, i % 2 ? P.pinkHot : P.cream, rim(P.pinkHot), 1.2)
+  }
+  // spine and a little top knob
+  ctx.beginPath()
+  ctx.moveTo(cx, cy - span)
+  ctx.lineTo(cx, cy + span)
+  ctx.lineWidth = 2
+  ctx.strokeStyle = css(rim(P.pinkHot))
+  ctx.stroke()
+  circle(ctx, cx + 2, cy, 3.6, P.lemon, rim(P.gold), 1.4)
+  gloss(ctx, cx + 9, cy - 12, 4, 2.4, 0.5)
+  return { ctx, ...rest }
+}
+
 // ------------------------------------------------------------------------- fx
 
 const swipe: Painter = () => {
@@ -999,6 +1056,7 @@ export const PAINTERS: Readonly<Record<string, Painter>> = {
   'proj-cone': cone,
   'proj-raindrop': raindrop,
   'prop-cupcake': cupcake,
+  'prop-umbrella': umbrella,
 
   'fx-swipe': swipe,
   'fx-nova': nova,

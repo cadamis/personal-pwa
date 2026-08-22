@@ -308,6 +308,55 @@ export class Orbiter extends Phaser.GameObjects.Sprite {
   }
 }
 
+// ------------------------------------------------------------------ shields
+
+/**
+ * The umbrella: a timed blocker carried behind the player.
+ *
+ * Deals no damage — it exists to eat incoming enemy projectiles. It is *not* a
+ * wall: it never blocks the player's own shots, which would make it a downgrade
+ * rather than a treat.
+ */
+export class Shield extends Phaser.GameObjects.Sprite {
+  weaponId: WeaponId = 'braveBrolly'
+  /** ms of life left. */
+  lifespan = 0
+  /** How far behind the player the canopy sits. */
+  offset = 26
+  /** Enemy shots within this radius of the canopy are stopped. */
+  blockRadius = 34
+
+  constructor(scene: Phaser.Scene, x: number, y: number) {
+    super(scene, x, y, 'prop-umbrella')
+    this.setOrigin(0.5, 0.5)
+  }
+
+  open(cfg: {
+    weaponId: WeaponId
+    texture: string
+    lifespan: number
+    blockRadius: number
+    offset: number
+    scale: number
+  }): void {
+    this.weaponId = cfg.weaponId
+    this.lifespan = cfg.lifespan
+    this.blockRadius = cfg.blockRadius
+    this.offset = cfg.offset
+    this.setTexture(cfg.texture)
+    this.setScale(cfg.scale * ART_SCALE)
+    this.setAlpha(1)
+    this.setDepth(31)
+    this.setActive(true)
+    this.setVisible(true)
+  }
+
+  retire(): void {
+    this.setActive(false)
+    this.setVisible(false)
+  }
+}
+
 // ----------------------------------------------------------------- turrets
 
 /** A cupcake left on the ground that shoots frosting for a while. */

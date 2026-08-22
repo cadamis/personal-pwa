@@ -10,7 +10,7 @@ import type Phaser from 'phaser'
 import type { Stats } from './stats'
 import type { Enemy, ShotMode } from './entities'
 import type { Inventory } from './loadout'
-import { WEAPONS, weaponLevel, type WeaponId } from '../data/weapons'
+import { WEAPONS, weaponLevel, type WeaponBehavior, type WeaponId, type WeaponLevel } from '../data/weapons'
 
 export interface ShotRequest {
   texture: string
@@ -42,6 +42,15 @@ export interface OrbiterRequest {
   hitCooldown: number
 }
 
+export interface ShieldRequest {
+  weaponId: WeaponId
+  texture: string
+  lifespan: number
+  blockRadius: number
+  offset: number
+  scale: number
+}
+
 export interface TurretRequest {
   x: number
   y: number
@@ -67,6 +76,7 @@ export interface WeaponHost {
   addOrbiter(req: OrbiterRequest): void
   clearOrbiters(weaponId: WeaponId): void
   addTurret(req: TurretRequest): void
+  addShield(req: ShieldRequest): void
   /** Instant damage in a cone: `spread` radians either side of `angle`. */
   castArc(x: number, y: number, angle: number, radius: number, spread: number, damage: number): void
   castNova(x: number, y: number, radius: number, damage: number): void
@@ -88,6 +98,14 @@ function projScale(base: number, areaMult: number): number {
 }
 
 const TAU = Math.PI * 2
+
+/**
+ * Cast-to-cast time. A shield's `cooldown` is the wait *after* it closes, so its
+ * cycle also has to cover the time it spends open.
+ */
+function cycleMs(behavior: WeaponBehavior, level: WeaponLevel): number {
+  return behavior === 'shield' ? level.cooldown + (level.duration ?? 0) : level.cooldown
+}
 
 export class WeaponSystem {
   private runtimes: Runtime[] = []
@@ -118,10 +136,11 @@ export class WeaponSystem {
       runtime.timer -= deltaMs
       if (runtime.timer > 0) continue
       const level = weaponLevel(runtime.id, runtime.level)
-      runtime.timer += level.cooldown / haste
+      const cycle = cycleMs(WEAPONS[runtime.id].behavior, level) / haste
+      runtime.timer += cycle
       // A very long pause (tab hidden, level-up screen) shouldn't fire a dozen
       // casts the instant play resumes.
-      if (runtime.timer < 0) runtime.timer = level.cooldown / haste
+      if (runtime.timer < 0) runtime.timer = cycle
       this.cast(runtime)
     }
   }
@@ -317,6 +336,20 @@ export class WeaponSystem {
             spin: 160,
           })
         }
+        break
+      }
+
+      case 'shield': {
+        // Always exactly one umbrella: extra projectiles would scatter it into
+        // several, which isn't what an umbrella is for.
+        this.host.addShield({
+          weaponId: runtime.id,
+          texture: def.texture,
+          lifespan: level.duration ?? 1000,
+          blockRadius: level.area * stats.areaMult,
+          offset: 26 * Math.min(1.4, stats.areaMult),
+          scale: Math.min(1.5, stats.areaMult),
+        })
         break
       }
 

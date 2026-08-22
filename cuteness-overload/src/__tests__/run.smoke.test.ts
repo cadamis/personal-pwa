@@ -29,7 +29,20 @@ interface LevelUpInternals {
   payload: { choices: Choice[]; onPick: (choice: Choice) => void }
   scene: Phaser.Scenes.ScenePlugin
 }
+interface ShieldLike {
+  active: boolean
+  x: number
+  y: number
+  blockRadius: number
+  lifespan: number
+}
 interface GameInternals {
+  shieldGroup: { getChildren(): ShieldLike[] }
+  foeShotGroup: { get(x: number, y: number): { launch(cfg: Record<string, unknown>): void } | null }
+  facingVec: { x: number; y: number }
+  weapons: { update(dt: number): void }
+  inventory: { weapons: { id: string; level: number }[] }
+  recomputeStats(): void
   obstacles?: { all(): Iterable<{ x: number; y: number }>; update(view: Phaser.Geom.Rectangle): void }
   shotGroup: { getChildren(): { active: boolean; x: number; y: number }[] }
   spawnBoss(): void
@@ -266,25 +279,28 @@ describe('a full run', () => {
     expect(before.length).toBeGreaterThan(0)
   }, 30_000)
 
-  it('pays out less in the meadow than in the forest', async () => {
-    // Same character, same wandering, same length of run: the difference is the
-    // level's payout multiplier.
-    await startRun('mochi', { levelId: 'meadow' })
-    advance(40)
-    internals().endRun(false)
-    advance(0.3)
-    const meadow = loadSave().sprinkles
-    game!.destroy(true)
-    game = null
+  it('applies the level payout multiplier to what gets banked', async () => {
+    // Ended on a win deliberately: the 200-sprinkle victory bonus is what makes
+    // this decisive. Comparing two losing runs means comparing a handful of
+    // chance-based drops, which is a coin flip rather than a test.
+    const bank = async (levelId: 'meadow' | 'forest'): Promise<number> => {
+      await startRun('mochi', { levelId })
+      advance(20)
+      internals().endRun(true)
+      advance(0.3)
+      const total = loadSave().sprinkles
+      game!.destroy(true)
+      game = null
+      return total
+    }
 
-    await startRun('mochi', { levelId: 'forest' })
-    advance(40)
-    internals().endRun(false)
-    advance(0.3)
-    const forest = loadSave().sprinkles
+    const meadow = await bank('meadow')
+    const forest = await bank('forest')
 
     expect(meadow).toBeGreaterThan(0)
-    expect(forest).toBeGreaterThan(meadow)
+    // Half the multiplier, so roughly half the banked total; a wide margin keeps
+    // the pickup noise out of it.
+    expect(forest).toBeGreaterThan(meadow * 1.5)
   }, 60_000)
 
   it('ends the run, banks sprinkles and opens the results screen', async () => {

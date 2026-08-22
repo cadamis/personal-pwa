@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CHARACTERS } from '../data/characters'
 import { PASSIVES } from '../data/passives'
-import { WEAPONS, weaponLevel } from '../data/weapons'
+import { WEAPONS, maxWeaponLevel, weaponLevel } from '../data/weapons'
 import {
   MAX_PASSIVE_SLOTS,
   MAX_WEAPON_SLOTS,
@@ -102,6 +102,10 @@ describe('stat maths', () => {
     }
   })
 
+  it('pays out half as much in the first level as the second', () => {
+    expect(LEVELS.meadow.sprinkleMult).toBeCloseTo(LEVELS.forest.sprinkleMult / 2, 5)
+  })
+
   it('ramps difficulty over a run, per level', () => {
     const meadow = LEVELS.meadow.ramp
     expect(difficultyAt(0, meadow).hp).toBe(1)
@@ -121,15 +125,40 @@ describe('weapon tables', () => {
     expect(weaponLevel('bubbleBark', 99)).toBe(WEAPONS.bubbleBark.levels.at(-1))
   })
 
-  it('gets stronger every level, and every weapon has a full table', () => {
+  it('gets better every level, whatever "better" means for that weapon', () => {
     for (const id of WEAPON_IDS) {
       const def = WEAPONS[id]
-      expect(def.levels).toHaveLength(5)
+      expect(def.levels.length).toBeGreaterThanOrEqual(3)
+      expect(maxWeaponLevel(id)).toBe(def.levels.length)
+
       for (let i = 1; i < def.levels.length; i++) {
-        expect(def.levels[i].damage).toBeGreaterThan(def.levels[i - 1].damage)
-        expect(def.levels[i].note).toBeTruthy()
+        const prev = def.levels[i - 1]
+        const next = def.levels[i]
+        expect(next.note).toBeTruthy()
+        // Damage may stay flat — Brave Brolly deals none at all — but it must
+        // never go backwards, and something has to have improved.
+        expect(next.damage).toBeGreaterThanOrEqual(prev.damage)
+        const better =
+          next.damage > prev.damage ||
+          next.count > prev.count ||
+          next.area > prev.area ||
+          next.pierce > prev.pierce ||
+          (next.duration ?? 0) > (prev.duration ?? 0) ||
+          next.cooldown < prev.cooldown
+        expect(better).toBe(true)
       }
     }
+  })
+
+  it('gives Brave Brolly the up-time and cooldown it was asked for', () => {
+    const levels = WEAPONS.braveBrolly.levels
+    expect(WEAPONS.braveBrolly.behavior).toBe('shield')
+    expect(levels).toHaveLength(3)
+    // Longer up-time and a shorter wait at every level.
+    expect(levels.map((l) => l.duration)).toEqual([1000, 1500, 2000])
+    expect(levels.map((l) => l.cooldown)).toEqual([8000, 7000, 6000])
+    // It buys safety, not damage.
+    expect(levels.every((l) => l.damage === 0)).toBe(true)
   })
 
   it('gives every passive a note per level', () => {
