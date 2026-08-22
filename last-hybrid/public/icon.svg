@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Hand-written to match scripts/gen-icons.mjs. Change one, change both. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#27324a" />
+      <stop offset="1" stop-color="#0d1117" />
+    </linearGradient>
+    <mask id="crescent">
+      <circle cx="256" cy="205" r="159" fill="#fff" />
+      <circle cx="312" cy="154" r="149" fill="#000" />
+    </mask>
+    <clipPath id="head">
+      <path d="M102 215 L143 174 L369 174 L410 215 L369 317 L307 369 L256 445 L205 369 L143 317 Z" />
+    </clipPath>
+  </defs>
+
+  <rect width="512" height="512" rx="113" fill="url(#sky)" />
+  <circle cx="256" cy="205" r="159" fill="#dfe9f5" opacity="0.5" mask="url(#crescent)" />
+
+  <!-- ears -->
+  <path d="M184 215 L87 82 L72 241 Z" fill="#bfd4e8" />
+  <path d="M161 205 L97 120 L90 215 Z" fill="#6d829a" />
+  <path d="M328 215 L425 82 L440 241 Z" fill="#bfd4e8" />
+  <path d="M351 205 L415 120 L422 215 Z" fill="#6d829a" />
+
+  <!-- head -->
+  <path d="M102 215 L143 174 L369 174 L410 215 L369 317 L307 369 L256 445 L205 369 L143 317 Z" fill="#bfd4e8" />
+  <g clip-path="url(#head)">
+    <rect x="266" y="150" width="180" height="320" fill="#6d829a" opacity="0.35" />
+  </g>
+
+  <!-- muzzle -->
+  <path d="M215 338 L297 338 L256 440 Z" fill="#6d829a" opacity="0.85" />
+  <ellipse cx="256" cy="404" rx="23" ry="18" fill="#141b24" />
+
+  <!-- eyes -->
+  <path d="M220 250 L151 229 L145 264 L212 273 Z" fill="#ffc861" />
+  <path d="M188 241 L176 244 L176 266 L188 264 Z" fill="#141b24" opacity="0.85" />
+  <path d="M292 250 L361 229 L367 264 L300 273 Z" fill="#ffc861" />
+  <path d="M324 241 L336 244 L336 266 L324 264 Z" fill="#141b24" opacity="0.85" />
+</svg>

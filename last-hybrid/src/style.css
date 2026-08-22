@@ -1,0 +1,25 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0d1117;
+  /* The game is all canvas — nothing here should ever be selectable or
+     bounce-scroll under a thumb that's driving the virtual stick. */
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#game {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+canvas {
+  display: block;
+}

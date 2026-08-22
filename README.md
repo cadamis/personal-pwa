@@ -16,6 +16,19 @@ https://cadamis.github.io/personal-pwa/<app-name>/
 
 so each one can be installed independently as its own app on a phone.
 
+## The apps
+
+| App                                        | What it is                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| [health-trainer](health-trainer/)          | Personal strength + mobility trainer for short daily sessions.                              |
+| [teabug](teabug/)                          | Run a cosy country tea room: brew, bake, and serve the regulars.                            |
+| [cuteness-overload](cuteness-overload/)    | A bullet-heaven romp through the Snuggle Meadow. Collect silly power-ups, out-cute the Grumps. |
+| [last-hybrid](last-hybrid/)                | A top-down adventure through a haunted wood. Shift between human and wolf to survive the night. |
+
+The deployed landing page at `/personal-pwa/` builds this same list for itself,
+reading each app's name, description and icon out of its manifest — so nothing
+there has to be kept in step by hand. This table is for people reading the repo.
+
 ## Tech stack requirements
 
 Every app in this repo is expected to use:

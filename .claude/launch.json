@@ -8,6 +8,12 @@
       "port": 5273
     },
     {
+      "name": "last-hybrid",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "last-hybrid", "--", "--port", "5275"],
+      "port": 5275
+    },
+    {
       "name": "site",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "5274", "--directory", "_site"],
