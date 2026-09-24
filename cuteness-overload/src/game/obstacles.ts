@@ -10,13 +10,14 @@
  */
 import Phaser from 'phaser'
 import { ART_SCALE } from '../art/textures'
+import { DEPTH } from './depth'
 import type { ObstacleDef } from '../data/levels'
 
 /**
  * Deterministic 0..1 from a pair of integers. A plain `Math.sin` hash has
  * visible diagonal banding at this cell size; this is a cheap integer mix.
  */
-function hash2(x: number, y: number, salt: number): number {
+export function hash2(x: number, y: number, salt: number): number {
   let h = Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(salt, 83492791)
   h = Math.imul(h ^ (h >>> 15), 2246822519)
   h = Math.imul(h ^ (h >>> 13), 3266489917)
@@ -64,14 +65,16 @@ export class ObstacleField {
         // Jittered inside the cell so the field doesn't read as a grid.
         const x = (cx + 0.2 + hash2(cx, cy, 2) * 0.6) * cell
         const y = (cy + 0.2 + hash2(cx, cy, 3) * 0.6) * cell
-        this.live.set(key, this.spawn(x, y))
+        const textures = this.def.textures
+        const texture = textures[Math.floor(hash2(cx, cy, 4) * textures.length) % textures.length]
+        this.live.set(key, this.spawn(x, y, texture, hash2(cx, cy, 5) < 0.5))
       }
     }
   }
 
-  private spawn(x: number, y: number): Phaser.Physics.Arcade.Sprite {
-    const sprite = this.group.create(x, y, this.def.texture) as Phaser.Physics.Arcade.Sprite
-    sprite.setScale(this.def.scale * ART_SCALE).setDepth(15)
+  private spawn(x: number, y: number, texture: string, flip: boolean): Phaser.Physics.Arcade.Sprite {
+    const sprite = this.group.create(x, y, texture) as Phaser.Physics.Arcade.Sprite
+    sprite.setScale(this.def.scale * ART_SCALE).setDepth(DEPTH.obstacle).setFlipX(flip)
     const body = sprite.body as Phaser.Physics.Arcade.StaticBody | null
     if (body) {
       // Same conversion as the dynamic bodies: radius is in texture pixels and
@@ -83,6 +86,26 @@ export class ObstacleField {
       body.updateFromGameObject()
     }
     return sprite
+  }
+
+  /**
+   * Whether an obstacle sits within `margin` px of (x, y). Works from the hash
+   * rather than the live sprites, so it answers for cells not streamed in yet.
+   */
+  occupied(x: number, y: number, margin: number): boolean {
+    const { cell } = this.def
+    const reach = this.def.radius + margin
+    const ccx = Math.floor(x / cell)
+    const ccy = Math.floor(y / cell)
+    for (let cy = ccy - 1; cy <= ccy + 1; cy++) {
+      for (let cx = ccx - 1; cx <= ccx + 1; cx++) {
+        if (hash2(cx, cy, 1) > this.def.chance) continue
+        const ox = (cx + 0.2 + hash2(cx, cy, 2) * 0.6) * cell
+        const oy = (cy + 0.2 + hash2(cx, cy, 3) * 0.6) * cell
+        if ((ox - x) ** 2 + (oy - y) ** 2 < reach * reach) return true
+      }
+    }
+    return false
   }
 
   /** Live obstacles, for line-of-sight checks. */

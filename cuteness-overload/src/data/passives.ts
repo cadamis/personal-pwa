@@ -18,6 +18,7 @@ export type PassiveId =
   | 'luckySocks'
   | 'snackPocket'
   | 'starPupil'
+  | 'sleepySlippers'
 
 export interface PassiveDef {
   id: PassiveId
@@ -180,6 +181,20 @@ const PASSIVE_LIST: readonly PassiveDef[] = [
       { xpMult: 0.2, luck: 0.15 },
     ],
     notes: ['+14% XP', '+14% XP', '+14% XP', '+14% XP', '+20% XP, +luck'],
+  },
+  {
+    id: 'sleepySlippers',
+    name: 'Sleepy Slippers',
+    icon: '🥿',
+    blurb: 'So comfy. Everything you leave lying around lasts longer.',
+    perLevel: [
+      { durationMult: 0.12 },
+      { durationMult: 0.12 },
+      { durationMult: 0.12 },
+      { durationMult: 0.12 },
+      { durationMult: 0.18 },
+    ],
+    notes: ['+12% duration', '+12% duration', '+12% duration', '+12% duration', '+18% duration'],
   },
 ]
 

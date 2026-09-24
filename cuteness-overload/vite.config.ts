@@ -14,7 +14,7 @@ export default defineConfig({
         name: 'Cuteness Overload',
         short_name: 'Cuteness',
         description:
-          'A bullet-heaven romp through the Snuggle Meadow. Collect silly power-ups, out-cute the Grumps.',
+          'A bullet-heaven romp through five cute worlds. Evolve silly weapons, fill your Sticker Book, out-cute the Grumps.',
         theme_color: '#ffb3d9',
         background_color: '#2b1f3a',
         display: 'standalone',

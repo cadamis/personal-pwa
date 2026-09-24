@@ -16,6 +16,13 @@ export type MetaId =
   | 'headStart'
   | 'cosyBlanket'
   | 'secondWind'
+  | 'musicBox'
+  | 'puffyJacket'
+  | 'presentRadar'
+  | 'chestCharm'
+  | 'rerollDice'
+  | 'banishNote'
+  | 'starPower'
 
 export interface MetaDef {
   id: MetaId
@@ -37,7 +44,7 @@ const META_LIST: readonly MetaDef[] = [
     name: 'Growth Spurt',
     icon: '🌱',
     blurb: 'Eat your greens. Become sturdier.',
-    maxLevel: 6,
+    maxLevel: 8,
     baseCost: 45,
     perLevel: { maxHp: 25 },
     effectText: '+25 max HP',
@@ -57,7 +64,7 @@ const META_LIST: readonly MetaDef[] = [
     name: 'Sharper Sparkles',
     icon: '✨',
     blurb: 'Same sparkles. Pointier.',
-    maxLevel: 6,
+    maxLevel: 8,
     baseCost: 70,
     perLevel: { damageMult: 0.08 },
     effectText: '+8% damage',
@@ -77,7 +84,7 @@ const META_LIST: readonly MetaDef[] = [
     name: 'Wind-Up Watch',
     icon: '⏱️',
     blurb: 'Tick tick tick tick tick tick.',
-    maxLevel: 5,
+    maxLevel: 6,
     baseCost: 80,
     perLevel: { hasteMult: 0.06 },
     effectText: '+6% attack speed',
@@ -87,7 +94,7 @@ const META_LIST: readonly MetaDef[] = [
     name: 'Piggy Bank',
     icon: '🐷',
     blurb: 'Oink. Keeps more sprinkles from every run.',
-    maxLevel: 5,
+    maxLevel: 6,
     baseCost: 60,
     perLevel: { sprinkleMult: 0.15 },
     effectText: '+15% sprinkles',
@@ -107,7 +114,7 @@ const META_LIST: readonly MetaDef[] = [
     name: 'Book Bag',
     icon: '🎒',
     blurb: 'Full of homework. You level up faster anyway.',
-    maxLevel: 4,
+    maxLevel: 5,
     baseCost: 65,
     perLevel: { xpMult: 0.1 },
     effectText: '+10% XP',
@@ -143,6 +150,76 @@ const META_LIST: readonly MetaDef[] = [
     baseCost: 300,
     perLevel: { revives: 1 },
     effectText: '+1 second chance',
+  },
+  {
+    id: 'musicBox',
+    name: 'Lullaby Music Box',
+    icon: '🎶',
+    blurb: 'Plays a gentle tune. Everything you leave behind lingers longer.',
+    maxLevel: 4,
+    baseCost: 90,
+    perLevel: { durationMult: 0.08 },
+    effectText: '+8% duration',
+  },
+  {
+    id: 'puffyJacket',
+    name: 'Puffy Jacket',
+    icon: '🧥',
+    blurb: 'Extremely puffy. Somehow makes every attack bigger.',
+    maxLevel: 4,
+    baseCost: 100,
+    perLevel: { areaMult: 0.05 },
+    effectText: '+5% area',
+  },
+  {
+    id: 'presentRadar',
+    name: 'Present Radar',
+    icon: '📡',
+    blurb: 'Beep beep! Finds more presents on the floor.',
+    maxLevel: 3,
+    baseCost: 90,
+    perLevel: { presentLuck: 0.25 },
+    effectText: '+25% presents',
+  },
+  {
+    id: 'chestCharm',
+    name: 'Chest Charm',
+    icon: '🗝️',
+    blurb: 'Treasure chests like you. They give you more.',
+    maxLevel: 3,
+    baseCost: 150,
+    perLevel: { chestLuck: 0.12 },
+    effectText: 'Bigger treasure chests',
+  },
+  {
+    id: 'rerollDice',
+    name: 'Reroll Dice',
+    icon: '🎲',
+    blurb: "Don't like the cards? Roll again!",
+    maxLevel: 5,
+    baseCost: 80,
+    perLevel: { rerolls: 1 },
+    effectText: '+1 reroll every run',
+  },
+  {
+    id: 'banishNote',
+    name: 'No-Thanks Note',
+    icon: '🙅',
+    blurb: 'Say "no thanks" to a card and never see it again that run.',
+    maxLevel: 3,
+    baseCost: 120,
+    perLevel: { banishes: 1 },
+    effectText: '+1 "no thanks" every run',
+  },
+  {
+    id: 'starPower',
+    name: 'Star Power',
+    icon: '🌟',
+    blurb: 'The most powerful thing in the shop. One extra of everything.',
+    maxLevel: 1,
+    baseCost: 2500,
+    perLevel: { extraProjectiles: 1 },
+    effectText: '+1 shot on every weapon',
   },
 ]
 

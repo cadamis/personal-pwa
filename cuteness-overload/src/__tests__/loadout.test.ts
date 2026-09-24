@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CHARACTERS, CHARACTER_IDS, STARTER_CHARACTER } from '../data/characters'
 import { ENEMIES, ENEMY_IDS } from '../data/enemies'
-import { PAINTERS } from '../art/textures'
+import { SPRITES } from '../art/textures'
 import { PASSIVES } from '../data/passives'
 import { WEAPONS, maxWeaponLevel, weaponLevel } from '../data/weapons'
 import {
@@ -17,7 +17,8 @@ import {
 import { LEVELS, LEVEL_IDS } from '../data/levels'
 import { baseStats, difficultyAt, modsUpToLevel, xpToNext } from '../game/stats'
 import { PASSIVE_IDS } from '../data/passives'
-import { WEAPON_IDS } from '../data/weapons'
+import { BASE_WEAPON_IDS, WEAPON_IDS } from '../data/weapons'
+import { characterUnlockSticker } from '../data/stickers'
 
 describe('computeStats', () => {
   it('starts from the base block for the starter character', () => {
@@ -82,7 +83,7 @@ describe('granting items', () => {
 
   it('refuses new items once the slots are full', () => {
     const inventory = emptyInventory()
-    for (const id of WEAPON_IDS) grantWeapon(inventory, id)
+    for (const id of BASE_WEAPON_IDS) grantWeapon(inventory, id)
     for (const id of PASSIVE_IDS) grantPassive(inventory, id)
     expect(inventory.weapons).toHaveLength(MAX_WEAPON_SLOTS)
     expect(inventory.passives).toHaveLength(MAX_PASSIVE_SLOTS)
@@ -125,13 +126,31 @@ describe('the art registry lines up with the data', () => {
   // A mistyped texture key is invisible until something renders as the missing
   // green square in the middle of a run, which is a miserable way to find it.
   it('has a painter for every texture the data asks for', () => {
-    for (const id of CHARACTER_IDS) expect(PAINTERS).toHaveProperty(CHARACTERS[id].texture)
-    for (const id of ENEMY_IDS) expect(PAINTERS).toHaveProperty(ENEMIES[id].texture)
-    for (const id of WEAPON_IDS) expect(PAINTERS).toHaveProperty(WEAPONS[id].texture)
+    for (const id of CHARACTER_IDS) expect(SPRITES).toHaveProperty(CHARACTERS[id].texture)
+    for (const id of ENEMY_IDS) {
+      const def = ENEMIES[id]
+      expect(SPRITES).toHaveProperty(def.texture)
+      if (def.shootTexture) expect(SPRITES).toHaveProperty(def.shootTexture)
+      for (const move of def.moves ?? []) {
+        if (move.kind === 'burst' || move.kind === 'spread') expect(SPRITES).toHaveProperty(move.texture)
+        if (move.kind === 'summon') expect(ENEMIES).toHaveProperty(move.enemy)
+      }
+    }
+    for (const id of WEAPON_IDS) {
+      const def = WEAPONS[id]
+      expect(SPRITES).toHaveProperty(def.texture)
+      if (def.fx) expect(SPRITES).toHaveProperty(def.fx)
+      if (def.prop) expect(SPRITES).toHaveProperty(def.prop)
+    }
+    // Keys the scenes use directly rather than through the data.
+    for (const key of ['fx-crown', 'fx-ring', 'fx-rays', 'fx-zzz', 'fx-poof', 'fx-heart', 'fx-hit', 'pick-chest', 'pick-magnet', 'pick-bomb', 'pick-freeze', 'pick-bag', 'pick-heart2', 'pick-heart3', 'prop-present-pink', 'prop-present-mint', 'prop-present-lilac']) {
+      expect(SPRITES).toHaveProperty(key)
+    }
     for (const id of LEVEL_IDS) {
-      expect(PAINTERS).toHaveProperty(LEVELS[id].backdrop)
+      expect(SPRITES).toHaveProperty(LEVELS[id].backdrop)
       const obstacles = LEVELS[id].obstacles
-      if (obstacles) expect(PAINTERS).toHaveProperty(obstacles.texture)
+      for (const texture of obstacles?.textures ?? []) expect(SPRITES).toHaveProperty(texture)
+      for (const texture of LEVELS[id].decals.textures) expect(SPRITES).toHaveProperty(texture)
     }
   })
 
@@ -143,15 +162,45 @@ describe('the art registry lines up with the data', () => {
       expect(def.perk).toBeTruthy()
       expect(def.title).toBeTruthy()
     }
-    // Exactly one is free, or the roster has no obvious starting point.
-    expect(CHARACTER_IDS.filter((id) => CHARACTERS[id].unlockCost === 0)).toEqual([STARTER_CHARACTER])
+    // Exactly one is free to start with, or the roster has no obvious starting
+    // point. (Friends that come off a sticker aren't bought at all.)
+    const forSale = CHARACTER_IDS.filter((id) => characterUnlockSticker(id) === undefined)
+    expect(forSale.filter((id) => CHARACTERS[id].unlockCost === 0)).toEqual([STARTER_CHARACTER])
+    for (const id of CHARACTER_IDS) {
+      if (!forSale.includes(id)) expect(CHARACTERS[id].unlockCost).toBe(0)
+    }
   })
 
-  it('names every boss from the enemy roster', () => {
+  it('names every boss and champion from the enemy roster', () => {
     for (const id of LEVEL_IDS) {
-      expect(ENEMIES).toHaveProperty(LEVELS[id].boss)
-      expect(ENEMIES).toHaveProperty(LEVELS[id].miniBoss)
-      expect(ENEMIES[LEVELS[id].boss].isBoss).toBe(true)
+      const level = LEVELS[id]
+      expect(ENEMIES).toHaveProperty(level.boss)
+      expect(ENEMIES[level.boss].isBoss).toBe(true)
+      expect(ENEMIES[level.boss].chest).toBe(true)
+      // The boss event must actually be scheduled, at bossTime.
+      expect(level.events.some((e) => e.kind === 'boss' && e.at === level.bossTime)).toBe(true)
+      for (const event of level.events) {
+        if (event.kind === 'miniboss') expect(ENEMIES[event.enemy].chest).toBe(true)
+        if ('enemy' in event) expect(ENEMIES).toHaveProperty(event.enemy)
+      }
+      for (const wave of level.waves) for (const enemy of wave.enemies) expect(ENEMIES).toHaveProperty(enemy)
+    }
+  })
+
+  it('chains every level to the one before it', () => {
+    LEVEL_IDS.forEach((id, i) => {
+      if (i === 0) expect(LEVELS[id].unlockedBy).toBeUndefined()
+      else expect(LEVELS[id].unlockedBy).toBe(LEVEL_IDS[i - 1])
+    })
+  })
+
+  it('makes each later level longer, harder and better-paying than the last', () => {
+    for (let i = 1; i < LEVEL_IDS.length; i++) {
+      const prev = LEVELS[LEVEL_IDS[i - 1]]
+      const next = LEVELS[LEVEL_IDS[i]]
+      expect(next.bossTime).toBeGreaterThanOrEqual(prev.bossTime)
+      expect(next.ramp.hp).toBeGreaterThan(prev.ramp.hp)
+      expect(next.sprinkleMult).toBeGreaterThan(prev.sprinkleMult)
     }
   })
 })
@@ -163,7 +212,7 @@ describe('weapon tables', () => {
   })
 
   it('gets better every level, whatever "better" means for that weapon', () => {
-    for (const id of WEAPON_IDS) {
+    for (const id of BASE_WEAPON_IDS) {
       const def = WEAPONS[id]
       expect(def.levels.length).toBeGreaterThanOrEqual(3)
       expect(maxWeaponLevel(id)).toBe(def.levels.length)

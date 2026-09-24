@@ -62,6 +62,46 @@ const SOUNDS: Record<string, Blip[]> = {
     { wave: 'triangle', from: 420, to: 400, duration: 0.18, gain: 0.11, at: 0.18 },
     { wave: 'sine', from: 320, to: 180, duration: 0.5, gain: 0.12, at: 0.36 },
   ],
+  zap: [
+    { wave: 'square', from: 1800, to: 600, duration: 0.07, gain: 0.05 },
+    { wave: 'triangle', from: 900, to: 1400, duration: 0.05, gain: 0.05, at: 0.03 },
+  ],
+  telegraph: [
+    { wave: 'triangle', from: 300, to: 520, duration: 0.25, gain: 0.08 },
+    { wave: 'sine', from: 600, to: 900, duration: 0.2, gain: 0.05, at: 0.18 },
+  ],
+  magnet: [
+    { wave: 'sine', from: 300, to: 1200, duration: 0.35, gain: 0.1 },
+    { wave: 'triangle', from: 600, to: 1600, duration: 0.3, gain: 0.06, at: 0.1 },
+  ],
+  bomb: [
+    { wave: 'sawtooth', from: 220, to: 40, duration: 0.5, gain: 0.14 },
+    { wave: 'triangle', from: 1200, to: 400, duration: 0.25, gain: 0.08 },
+    { wave: 'sine', from: 900, to: 1400, duration: 0.3, gain: 0.07, at: 0.2 },
+  ],
+  nap: [
+    { wave: 'sine', from: 880, to: 660, duration: 0.3, gain: 0.08 },
+    { wave: 'sine', from: 660, to: 440, duration: 0.4, gain: 0.08, at: 0.3 },
+  ],
+  present: [
+    { wave: 'triangle', from: 700, to: 1100, duration: 0.08, gain: 0.09 },
+    { wave: 'triangle', from: 1100, to: 1500, duration: 0.1, gain: 0.08, at: 0.07 },
+  ],
+  chest: [
+    { wave: 'triangle', from: 523, to: 523, duration: 0.1, gain: 0.1 },
+    { wave: 'triangle', from: 659, to: 659, duration: 0.1, gain: 0.1, at: 0.1 },
+    { wave: 'triangle', from: 784, to: 784, duration: 0.1, gain: 0.1, at: 0.2 },
+    { wave: 'triangle', from: 1047, to: 1047, duration: 0.3, gain: 0.12, at: 0.3 },
+  ],
+  evolve: [
+    { wave: 'triangle', from: 523, to: 1047, duration: 0.4, gain: 0.1 },
+    { wave: 'sine', from: 784, to: 1568, duration: 0.5, gain: 0.08, at: 0.15 },
+    { wave: 'triangle', from: 1047, to: 2093, duration: 0.5, gain: 0.07, at: 0.3 },
+  ],
+  sticker: [
+    { wave: 'sine', from: 1200, to: 1200, duration: 0.07, gain: 0.08 },
+    { wave: 'sine', from: 1600, to: 1600, duration: 0.14, gain: 0.08, at: 0.07 },
+  ],
 }
 
 export type SoundName = keyof typeof SOUNDS

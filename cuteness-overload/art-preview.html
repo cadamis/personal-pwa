@@ -1,134 +1,444 @@
 <!doctype html>
 <!--
-  Throwaway art check: paints the meadow and a representative crowd of sprites
-  once, with no game loop, so the backdrop can be judged for readability.
-  Not part of the build; delete when done with it.
+  Dev-only art review page (Vite doesn't build it). Open it on the dev server:
+
+    /art-preview.html          every sprite in the game, grouped the way you meet
+                               them (friends, each world's Grumps and scenery,
+                               weapons next to their evolutions, pickups, effects),
+                               animated, on its own world's floor, with a notes box
+                               per sprite and a button that copies all your notes
+    /art-preview.html?crowd    every level's floor with a busy crowd on it, at
+                               in-game scale — judge readability here
 -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>art preview</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cuteness Overload — art review</title>
     <style>
-      body { margin: 0; background: #2b1f3a; }
-      canvas { display: block; }
+      :root { --ink: #2b1f3a; --paper: #fff7f0; --soft: #b9a8c9; --pink: #ff7eb6; --gold: #ffc94d; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--ink); font: 14px/1.35 system-ui, sans-serif; color: var(--paper); }
+      header {
+        position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+        padding: 10px 16px; background: #3a2b4d; box-shadow: 0 2px 10px #0006;
+      }
+      header h1 { font-size: 17px; margin: 0 8px 0 0; }
+      header label { display: flex; gap: 6px; align-items: center; color: var(--soft); }
+      header a { color: var(--gold); }
+      nav.toc { display: flex; flex-wrap: wrap; gap: 4px 10px; width: 100%; font-size: 13px; }
+      nav.toc a { color: var(--soft); text-decoration: none; }
+      nav.toc a:hover { color: var(--paper); }
+      button {
+        font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 7px 14px; cursor: pointer;
+        background: var(--pink); color: var(--ink);
+      }
+      button.ghost { background: transparent; color: var(--soft); border: 1px solid #fff3; }
+      main { padding: 8px 16px 80px; }
+      h2 { margin: 28px 0 4px; font-size: 20px; }
+      p.sub { margin: 0 0 12px; color: var(--soft); }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--cell, 220px), 1fr)); gap: 12px; }
+      .card { background: #3a2b4d; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+      .card.noted { outline: 2px solid var(--gold); }
+      .card canvas { width: 100%; aspect-ratio: 1; display: block; cursor: pointer; }
+      .meta { padding: 8px 10px 4px; }
+      .name { font-weight: 700; }
+      .key { font: 12px ui-monospace, monospace; color: var(--soft); user-select: all; }
+      .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+      .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #fff2; }
+      .badge.boss { background: #ff6b6b; color: var(--ink); }
+      .badge.mini { background: var(--gold); color: var(--ink); }
+      .badge.warn { background: #ff9f43; color: var(--ink); }
+      textarea {
+        margin: 6px 10px 10px; resize: vertical; min-height: 34px; font: inherit; font-size: 13px; border-radius: 8px;
+        border: 1px solid #fff2; background: #2b1f3a; color: var(--paper); padding: 6px 8px;
+      }
+      textarea::placeholder { color: #fff5; }
+      #toast {
+        position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--gold); color: var(--ink);
+        padding: 8px 16px; border-radius: 999px; font-weight: 700; opacity: 0; transition: opacity 0.2s; pointer-events: none;
+      }
+      #crowd { display: block; max-width: 100vw; }
     </style>
   </head>
   <body>
-    <canvas id="c" width="900" height="860"></canvas>
+    <div id="app"></div>
+    <div id="toast"></div>
     <script type="module">
-      import { PAINTERS } from './src/art/textures.ts'
+      import { SPRITES } from './src/art/textures.ts'
+      import { LEVELS, LEVEL_IDS } from './src/data/levels.ts'
+      import { ENEMIES } from './src/data/enemies.ts'
+      import { CHARACTERS, CHARACTER_IDS } from './src/data/characters.ts'
+      import { WEAPONS, BASE_WEAPON_IDS } from './src/data/weapons.ts'
 
-      const ctx = document.getElementById('c').getContext('2d')
-      const canvasFor = (key) => PAINTERS[key]().canvas
+      const params = new URLSearchParams(location.search)
+      const app = document.getElementById('app')
 
-      // The meadow tile is drawn at MEADOW_TILE_SCALE = 1, so one repeat is the
-      // texture's own 512px. At 900x620 the game camera zoom is 1, so screen
-      // pixels here equal world pixels in play.
-      // Left half meadow, right half forest, so the two floors can be compared.
-      ctx.fillStyle = ctx.createPattern(canvasFor('bg-meadow'), 'repeat')
-      ctx.fillRect(0, 0, 450, 620)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(450, 0, 450, 620)
-      ctx.clip()
-      ctx.fillStyle = ctx.createPattern(canvasFor('bg-forest'), 'repeat')
-      ctx.fillRect(0, 0, 900, 620)
-      ctx.restore()
-
-      // Sprites are shown at ART_SCALE (1/2 of their canvas).
-      const put = (key, x, y, scale = 1) => {
-        const cv = canvasFor(key)
-        const w = cv.width * 0.5 * scale
-        const h = cv.height * 0.5 * scale
-        ctx.drawImage(cv, x - w / 2, y - h / 2, w, h)
+      const canvases = new Map()
+      /** The painted canvas for one frame of a sprite (painted at 2x, plus any pre-zoom). */
+      const art = (key, frame = 0) => {
+        const id = `${key}#${frame}`
+        if (!canvases.has(id)) canvases.set(id, SPRITES[key].paint(frame).canvas)
+        return canvases.get(id)
+      }
+      /** How big a sprite's canvas shows on screen at scale 1, the way the game draws it. */
+      const displaySize = (key) => {
+        const cv = art(key)
+        const zoom = SPRITES[key].zoom ?? 1
+        return [cv.width / 2 / zoom, cv.height / 2 / zoom]
       }
 
-      const foes = ['foe-snail', 'foe-bee', 'foe-slime', 'foe-acorn', 'foe-cloud', 'foe-moth']
-      let seed = 7
-      const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 0x100000000)
-      for (let i = 0; i < 46; i++) put(foes[i % foes.length], rnd() * 880 + 10, rnd() * 600 + 10)
-      for (let i = 0; i < 14; i++) put('pick-heart', rnd() * 880 + 10, rnd() * 600 + 10)
-      for (let i = 0; i < 8; i++) put('pick-sprinkle', rnd() * 880 + 10, rnd() * 600 + 10)
-      for (let i = 0; i < 12; i++) put('proj-bubble', rnd() * 880 + 10, rnd() * 600 + 10)
-      for (let i = 0; i < 6; i++) put('proj-sticker', rnd() * 880 + 10, rnd() * 600 + 10)
-      put('foe-gnome', 700, 160, 1.7)
-      put('foe-fluffington', 250, 460, 2.4)
-      // Bushes on the forest side, at the density the level actually uses.
-      for (let i = 0; i < 7; i++) put('prop-bush', 500 + (i % 3) * 150, 90 + Math.floor(i / 3) * 190)
-      put('foe-monkey', 700, 470, 2.3)
-      put('char-mochi', 450, 310)
+      if (params.has('crowd')) crowd()
+      else gallery()
 
-      // The umbrella at four headings, drawn the way GameScene places it: the
-      // player runs one way, the canopy sits on the opposite side.
-      const brolly = (px, py, fx, fy) => {
-        const zoom = 2.5
-        const cvP = canvasFor('char-mochi')
-        ctx.drawImage(cvP, px - cvP.width * 0.25 * zoom, py - cvP.height * 0.25 * zoom, cvP.width * 0.5 * zoom, cvP.height * 0.5 * zoom)
-        const angle = Math.atan2(-fy, -fx)
-        const cv = canvasFor('prop-umbrella')
-        ctx.save()
-        ctx.translate(px + Math.cos(angle) * 26 * zoom, py + Math.sin(angle) * 26 * zoom)
-        ctx.rotate(angle)
-        ctx.drawImage(cv, -cv.width * 0.25 * zoom, -cv.height * 0.25 * zoom, cv.width * 0.5 * zoom, cv.height * 0.5 * zoom)
-        ctx.restore()
-        // an arrow showing which way the player is running
-        ctx.save()
-        ctx.strokeStyle = '#2b1f3a'
-        ctx.lineWidth = 3
-        ctx.beginPath()
-        ctx.moveTo(px, py)
-        ctx.lineTo(px + fx * 46 * zoom, py + fy * 46 * zoom)
-        ctx.stroke()
-        ctx.restore()
+      // ================================================================ gallery
+      function gallery() {
+        // ------------------------------------------------------------ grouping
+        const placed = new Set()
+        const sections = []
+        /** `extra` is anything per-item: name, badges, in-game scale, floor to show it on. */
+        const item = (key, extra = {}) => (SPRITES[key] && !placed.has(key) ? (placed.add(key), { key, ...extra }) : null)
+        const section = (title, sub, items) => {
+          const list = items.filter(Boolean)
+          if (list.length) sections.push({ title, sub, items: list })
+        }
+        const texturesOf = (def) => Object.values(def).filter((v) => typeof v === 'string' && SPRITES[v])
+
+        section(
+          'Friends',
+          'The playable characters.',
+          CHARACTER_IDS.map((id) => item(CHARACTERS[id].texture, { name: CHARACTERS[id].name, floor: 'bg-meadow' })),
+        )
+
+        for (const id of LEVEL_IDS) {
+          const level = LEVELS[id]
+          const minis = new Set(level.events.filter((e) => e.kind === 'miniboss').map((e) => e.enemy))
+          const elites = new Set(level.events.filter((e) => e.kind === 'elite').map((e) => e.enemy))
+          const foeIds = [
+            ...level.waves.flatMap((w) => w.enemies),
+            ...level.events.flatMap((e) => ('enemy' in e ? [e.enemy] : [])),
+            level.boss,
+          ]
+          const items = []
+          for (const foeId of [...new Set(foeIds)]) {
+            const foe = ENEMIES[foeId]
+            const badges = []
+            if (foeId === level.boss) badges.push(['Boss', 'boss'])
+            else if (minis.has(foeId)) badges.push(['Mini-boss', 'mini'])
+            if (elites.has(foeId)) badges.push(['also comes as an elite', ''])
+            if (foe.flies) badges.push(['flies', ''])
+            items.push(item(foe.texture, { name: foe.name, badges, scale: foe.scale, floor: level.backdrop }))
+            if (foe.shootTexture) items.push(item(foe.shootTexture, { name: `${foe.name}'s shot`, floor: level.backdrop }))
+          }
+          items.push(item(level.backdrop, { name: 'Floor tile', floor: null }))
+          for (const t of level.obstacles?.textures ?? []) {
+            items.push(item(t, { name: 'Obstacle', scale: level.obstacles.scale, floor: level.backdrop }))
+          }
+          for (const t of level.decals.textures) items.push(item(t, { name: 'Ground decoration', floor: level.backdrop }))
+          section(`${level.icon} ${level.name}`, 'Grumps in the order they turn up, then the scenery.', items)
+        }
+
+        const weaponItems = []
+        for (const id of BASE_WEAPON_IDS) {
+          const weapon = WEAPONS[id]
+          for (const t of texturesOf(weapon)) weaponItems.push(item(t, { name: weapon.name, floor: 'bg-meadow' }))
+          const evo = weapon.evolution && WEAPONS[weapon.evolution.into]
+          if (evo) {
+            for (const t of texturesOf(evo)) {
+              weaponItems.push(item(t, { name: evo.name, badges: [[`evolved ${weapon.name}`, 'mini']], floor: 'bg-meadow' }))
+            }
+          }
+        }
+        section('Weapons', 'Each weapon, followed by what it evolves into.', weaponItems)
+
+        const pickupNames = {
+          'pick-heart': 'Heart (small)', 'pick-heart2': 'Heart (medium)', 'pick-heart3': 'Heart (big)',
+          'pick-sprinkle': 'Sprinkle', 'pick-snack': 'Snack', 'pick-chest': 'Treasure chest', 'pick-magnet': 'Friendship Magnet',
+          'pick-bomb': 'Cuddle Bomb', 'pick-freeze': 'Nap Time', 'pick-bag': 'Bag of sprinkles',
+          'prop-present-pink': 'Present', 'prop-present-mint': 'Present', 'prop-present-lilac': 'Present',
+        }
+        section(
+          'Pickups & presents',
+          'Things you collect, and the presents that break open into them.',
+          Object.keys(pickupNames).map((k) => item(k, { name: pickupNames[k], floor: 'bg-meadow' })),
+        )
+
+        const fxNames = {
+          'fx-puff': 'Dust puff', 'fx-star': 'Star dust', 'fx-heart': 'Heart burst', 'fx-poof': 'Defeat poof', 'fx-hit': 'Hit flash',
+          'fx-ring': 'Ring (boss warning, pickups)', 'fx-rays': 'Rays (level up, chests)', 'fx-zzz': 'Zzz (Nap Time)', 'fx-crown': 'Elite crown',
+        }
+        section(
+          'Effects',
+          'Short-lived bits of sparkle.',
+          Object.keys(SPRITES).filter((k) => k.startsWith('fx-')).map((k) => item(k, { name: fxNames[k] ?? 'Effect', floor: 'bg-meadow' })),
+        )
+        section(
+          'Controls',
+          'On-screen joystick and pointer.',
+          Object.keys(SPRITES).filter((k) => k.startsWith('ui-')).map((k) => item(k, { name: 'Controls', floor: 'bg-meadow' })),
+        )
+        section(
+          'Everything else',
+          'Registered sprites that don’t fit a group above.',
+          Object.keys(SPRITES).map((k) => item(k, { name: k, floor: 'bg-meadow' })),
+        )
+
+        // ------------------------------------------------------------ notes
+        const NOTES_KEY = 'cuteness-overload:art-notes'
+        const notes = JSON.parse(localStorage.getItem(NOTES_KEY) ?? '{}')
+        const saveNotes = () => localStorage.setItem(NOTES_KEY, JSON.stringify(notes))
+        const labels = new Map(sections.flatMap((s) => s.items.map((i) => [i.key, i.name])))
+        const noteCount = () => Object.values(notes).filter((n) => n.trim()).length
+
+        // ------------------------------------------------------------ page
+        const total = sections.reduce((n, s) => n + s.items.length, 0)
+        app.innerHTML = `
+          <header>
+            <h1>Art review · ${total} sprites</h1>
+            <label>Zoom <input id="zoom" type="range" min="1" max="6" step="0.5" value="3" /> <span id="zoomv"></span></label>
+            <label><input id="floor" type="checkbox" checked /> on the world’s floor</label>
+            <label><input id="play" type="checkbox" checked /> animate</label>
+            <button id="copy">Copy notes</button>
+            <button id="clear" class="ghost">Clear notes</button>
+            <a href="?crowd">Crowd view →</a>
+            <nav class="toc">${sections.map((s, i) => `<a href="#s${i}">${s.title}</a>`).join('')}</nav>
+          </header>
+          <main>${sections
+            .map(
+              (s, i) => `
+              <h2 id="s${i}">${s.title}</h2><p class="sub">${s.sub}</p>
+              <div class="grid">${s.items.map(cardHtml).join('')}</div>`,
+            )
+            .join('')}</main>`
+
+        function cardHtml(it) {
+          const frames = SPRITES[it.key].frames ?? 1
+          const badges = [...(it.badges ?? [])]
+          if (frames > 1) badges.push([`${frames} frames`, ''])
+          if (touchesEdge(it.key)) badges.push(['⚠ touches canvas edge — may be clipped', 'warn'])
+          return `
+            <div class="card" data-key="${it.key}">
+              <canvas title="Click to pause / step frames"></canvas>
+              <div class="meta">
+                <div class="name">${it.name}</div>
+                <div class="key">${it.key}</div>
+                <div class="badges">${badges.map(([t, c]) => `<span class="badge ${c}">${t}</span>`).join('')}</div>
+              </div>
+              <textarea rows="1" placeholder="Notes on this sprite…"></textarea>
+            </div>`
+        }
+
+        /** Opaque pixels on the outermost row/column usually mean the painter ran off its canvas. */
+        function touchesEdge(key) {
+          if (key.startsWith('bg-')) return false
+          for (let f = 0; f < (SPRITES[key].frames ?? 1); f++) {
+            const cv = art(key, f)
+            const { data } = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height)
+            const a = (x, y) => data[(y * cv.width + x) * 4 + 3]
+            for (let x = 0; x < cv.width; x++) if (a(x, 0) > 40 || a(x, cv.height - 1) > 40) return true
+            for (let y = 0; y < cv.height; y++) if (a(0, y) > 40 || a(cv.width - 1, y) > 40) return true
+          }
+          return false
+        }
+
+        const byKey = new Map(sections.flatMap((s) => s.items.map((i) => [i.key, i])))
+        const cards = [...document.querySelectorAll('.card')].map((el) => {
+          const it = byKey.get(el.dataset.key)
+          const canvas = el.querySelector('canvas')
+          const ta = el.querySelector('textarea')
+          ta.value = notes[it.key] ?? ''
+          el.classList.toggle('noted', !!ta.value.trim())
+          ta.addEventListener('input', () => {
+            notes[it.key] = ta.value
+            if (!ta.value.trim()) delete notes[it.key]
+            el.classList.toggle('noted', !!ta.value.trim())
+            saveNotes()
+          })
+          const card = { it, canvas, frame: 0, paused: false }
+          canvas.addEventListener('click', () => {
+            const frames = SPRITES[it.key].frames ?? 1
+            if (frames > 1 && card.paused) card.frame = (card.frame + 1) % frames
+            card.paused = true
+            draw(card)
+          })
+          canvas.addEventListener('dblclick', () => (card.paused = false))
+          return card
+        })
+
+        const zoomEl = document.getElementById('zoom')
+        const floorEl = document.getElementById('floor')
+        const playEl = document.getElementById('play')
+        const patterns = new Map()
+        const floorPattern = (ctx, key) => {
+          if (!patterns.has(key)) {
+            const p = ctx.createPattern(art(key), 'repeat')
+            p.setTransform(new DOMMatrix().scale(0.5)) // floors are painted at 2x like everything else
+            patterns.set(key, p)
+          }
+          return patterns.get(key)
+        }
+
+        function draw(card) {
+          const { it, canvas } = card
+          const dpr = window.devicePixelRatio || 1
+          const px = Math.round(canvas.clientWidth * dpr)
+          if (canvas.width !== px) canvas.width = canvas.height = px
+          const ctx = canvas.getContext('2d')
+          const cell = canvas.width / dpr
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+          ctx.clearRect(0, 0, cell, cell)
+          const floor = it.floor && floorEl.checked ? it.floor : null
+          if (it.key.startsWith('bg-')) {
+            // A floor tile: show it tiled at game scale, with the seam of the tile outlined.
+            ctx.fillStyle = floorPattern(ctx, it.key)
+            ctx.fillRect(0, 0, cell, cell)
+            const [w, h] = displaySize(it.key)
+            ctx.strokeStyle = '#2b1f3a55'
+            ctx.setLineDash([4, 4])
+            ctx.strokeRect(0.5, 0.5, Math.min(w, cell) - 1, Math.min(h, cell) - 1)
+            ctx.setLineDash([])
+            return
+          }
+          if (floor) {
+            ctx.fillStyle = floorPattern(ctx, floor)
+            ctx.fillRect(0, 0, cell, cell)
+          } else {
+            ctx.fillStyle = '#e9dff2'
+            ctx.fillRect(0, 0, cell, cell)
+          }
+          const [w, h] = displaySize(it.key)
+          const game = it.scale ?? 1
+          // Big view: zoomed, but always fitting the card.
+          const z = Math.min(Number(zoomEl.value) * game, (cell * 0.86) / Math.max(w, h))
+          const cv = art(it.key, card.frame)
+          ctx.imageSmoothingQuality = 'high'
+          ctx.drawImage(cv, cell / 2 - (w * z) / 2, cell / 2 - (h * z) / 2, w * z, h * z)
+          // Actual in-game size, bottom-left, when the big view is much bigger than that.
+          const gw = w * game
+          const gh = h * game
+          if (Math.max(gw, gh) < cell * 0.45 && z / game >= 2) {
+            ctx.fillStyle = '#2b1f3a55'
+            ctx.beginPath()
+            ctx.roundRect(4, cell - gh - 12, gw + 8, gh + 8, 6)
+            ctx.fill()
+            ctx.drawImage(cv, 8, cell - gh - 8, gw, gh)
+          }
+          ctx.font = '600 11px system-ui'
+          ctx.fillStyle = '#2b1f3acc'
+          ctx.fillRect(cell - 44, 4, 40, 16)
+          ctx.fillStyle = '#fff7f0'
+          ctx.textAlign = 'center'
+          ctx.fillText(`×${(z / game).toFixed(1)}`, cell - 24, 16)
+        }
+
+        const drawAll = () => cards.forEach(draw)
+        const showZoom = () => (document.getElementById('zoomv').textContent = `×${zoomEl.value}`)
+        zoomEl.addEventListener('input', () => (showZoom(), drawAll()))
+        floorEl.addEventListener('change', drawAll)
+        window.addEventListener('resize', drawAll)
+        showZoom()
+        drawAll()
+
+        // Animation: each sprite at its own in-game fps.
+        let last = performance.now()
+        const clock = new Map(cards.map((c) => [c, 0]))
+        const tick = (now) => {
+          const dt = now - last
+          last = now
+          if (playEl.checked) {
+            for (const card of cards) {
+              const def = SPRITES[card.it.key]
+              if ((def.frames ?? 1) < 2 || card.paused) continue
+              const t = clock.get(card) + dt
+              clock.set(card, t)
+              const frame = Math.floor((t / 1000) * (def.fps ?? 4)) % def.frames
+              if (frame !== card.frame) {
+                card.frame = frame
+                draw(card)
+              }
+            }
+          }
+          requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+
+        // ------------------------------------------------------------ copy
+        const toast = (msg) => {
+          const el = document.getElementById('toast')
+          el.textContent = msg
+          el.style.opacity = 1
+          setTimeout(() => (el.style.opacity = 0), 1800)
+        }
+        document.getElementById('copy').addEventListener('click', async () => {
+          const lines = Object.entries(notes)
+            .filter(([, n]) => n.trim())
+            .map(([k, n]) => `- **${labels.get(k) ?? k}** (\`${k}\`): ${n.trim().replace(/\n+/g, ' ')}`)
+          if (!lines.length) return toast('No notes yet — type in the boxes under each sprite')
+          await navigator.clipboard.writeText(`Art feedback:\n\n${lines.join('\n')}\n`)
+          toast(`Copied ${lines.length} note${lines.length === 1 ? '' : 's'} — paste them into the chat`)
+        })
+        document.getElementById('clear').addEventListener('click', () => {
+          if (!noteCount() || !confirm(`Clear all ${noteCount()} notes?`)) return
+          for (const k of Object.keys(notes)) delete notes[k]
+          saveNotes()
+          document.querySelectorAll('.card textarea').forEach((t) => (t.value = ''))
+          document.querySelectorAll('.card').forEach((c) => c.classList.remove('noted'))
+        })
       }
-      // A clean strip below the crowd, at 2.5x, so the orientation is legible.
-      ctx.fillStyle = '#2b1f3a'
-      ctx.fillRect(0, 620, 900, 240)
-      ctx.fillStyle = '#96c288'
-      ctx.fillRect(10, 630, 880, 220)
-      // Puddles beside her goose, at 3x, to check they don't read as each other.
-      const roster = ['char-mochi', 'char-nimbus', 'char-waffles', 'char-pip', 'char-blobbo', 'char-puddles']
-      roster.forEach((key, i) => {
-        const cv = canvasFor(key)
-        const z = 3
-        ctx.drawImage(cv, 40 + i * 105 - cv.width * 0.25 * z, 660 - cv.height * 0.25 * z, cv.width * 0.5 * z, cv.height * 0.5 * z)
-      })
-      const goose = canvasFor('proj-goose')
-      ctx.drawImage(goose, 680, 630, goose.width * 1.5, goose.height * 1.5)
 
-      brolly(210, 780, 1, 0)
-      brolly(500, 780, -1, 0)
-
-      // The off-screen boss badge, at eight headings, drawn the way HudScene
-      // composes it: translucent disc, boss face, chevron pointing outward.
-      const badge = (cx, cy, dx, dy, key) => {
-        const r = 40
-        ctx.save()
-        ctx.translate(cx, cy)
-        ctx.fillStyle = 'rgba(43,31,58,0.65)'
-        ctx.beginPath()
-        ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.strokeStyle = 'rgba(255,209,102,0.95)'
-        ctx.lineWidth = 3
-        ctx.stroke()
-        const face = canvasFor(key)
-        ctx.drawImage(face, -r / 2, -r / 2, r, r)
-        const arrow = canvasFor('ui-pointer')
-        ctx.translate(dx * r * 0.78, dy * r * 0.78)
-        ctx.rotate(Math.atan2(dy, dx))
-        ctx.drawImage(arrow, -arrow.width * 0.25, -arrow.height * 0.25, arrow.width * 0.5, arrow.height * 0.5)
-        ctx.restore()
+      // ================================================================ crowd
+      // One panel per level at in-game scale (camera zoom 1 at 900x620), with
+      // that level's decals, obstacles, Grumps, shots and pickups scattered on
+      // it: roughly what minute five looks like.
+      function crowd() {
+        app.innerHTML = '<p style="margin:8px 12px"><a style="color:#ffc94d" href="?">← All sprites</a></p><canvas id="crowd"></canvas>'
+        const cvs = document.getElementById('crowd')
+        const ctx = cvs.getContext('2d')
+        const put = (key, x, y, scale = 1, frame = 0) => {
+          const cv = art(key, frame)
+          const [w0, h0] = displaySize(key)
+          const w = w0 * scale
+          const h = h0 * scale
+          ctx.drawImage(cv, x - w / 2, y - h / 2, w, h)
+        }
+        const W = 450
+        const H = 310
+        cvs.width = W * 2
+        cvs.height = H * Math.ceil(LEVEL_IDS.length / 2)
+        let seed = 7
+        const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 0x100000000)
+        LEVEL_IDS.forEach((id, i) => {
+          const level = LEVELS[id]
+          const ox = (i % 2) * W
+          const oy = Math.floor(i / 2) * H
+          ctx.save()
+          ctx.beginPath()
+          ctx.rect(ox, oy, W, H)
+          ctx.clip()
+          ctx.fillStyle = ctx.createPattern(art(level.backdrop), 'repeat')
+          ctx.fillRect(ox, oy, W, H)
+          const at = () => [ox + 10 + rnd() * (W - 20), oy + 10 + rnd() * (H - 20)]
+          for (let n = 0; n < 9; n++) put(level.decals.textures[n % level.decals.textures.length], ...at(), 1)
+          for (let n = 0; n < 3 && level.obstacles; n++) put(level.obstacles.textures[n % level.obstacles.textures.length], ...at())
+          const foes = [...new Set(level.waves.flatMap((w) => w.enemies))]
+          for (let n = 0; n < 26; n++) {
+            const foe = ENEMIES[foes[n % foes.length]]
+            put(foe.texture, ...at(), foe.scale, n % 2)
+          }
+          for (let n = 0; n < 8; n++) put(['pick-heart', 'pick-heart2', 'pick-sprinkle'][n % 3], ...at())
+          for (let n = 0; n < 8; n++) put(['proj-bubble', 'proj-sticker', 'proj-carrot'][n % 3], ...at())
+          const shots = [...new Set(foes.map((f) => ENEMIES[f].shootTexture).filter(Boolean))]
+          for (let n = 0; n < 6 && shots.length; n++) put(shots[n % shots.length], ...at())
+          put('prop-present-pink', ...at())
+          put('char-mochi', ox + W / 2, oy + H / 2)
+          ctx.restore()
+          ctx.font = '13px sans-serif'
+          ctx.fillStyle = '#2b1f3a'
+          ctx.fillRect(ox + 6, oy + 6, ctx.measureText(level.name).width + 10, 18)
+          ctx.fillStyle = '#fff7f0'
+          ctx.fillText(level.name, ox + 11, oy + 19)
+        })
       }
-      const compass = [
-        [-1, 0], [1, 0], [0, -1], [0, 1],
-        [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7],
-      ]
-      compass.forEach(([dx, dy], i) => {
-        const cx = 120 + (i % 4) * 220
-        const cy = i < 4 ? 90 : 560
-        badge(cx, cy, dx, dy, i % 2 ? 'foe-fluffington' : 'foe-gnome')
-      })
     </script>
   </body>
 </html>

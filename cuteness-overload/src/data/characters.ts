@@ -2,7 +2,17 @@
 import type { StatMod } from '../game/stats'
 import type { WeaponId } from './weapons'
 
-export type CharacterId = 'mochi' | 'nimbus' | 'waffles' | 'pip' | 'blobbo' | 'puddles'
+export type CharacterId =
+  | 'mochi'
+  | 'nimbus'
+  | 'waffles'
+  | 'pip'
+  | 'blobbo'
+  | 'puddles'
+  | 'pillow'
+  | 'twinkle'
+  | 'jellybean'
+  | 'fluffy'
 
 export interface CharacterDef {
   id: CharacterId
@@ -12,7 +22,10 @@ export interface CharacterDef {
   blurb: string
   texture: string
   startWeapon: WeaponId
-  /** Sprinkles to unlock. Mochi is free. */
+  /**
+   * Sprinkles to unlock. Mochi is free. Friends that come off a sticker (see
+   * `characterUnlockSticker`) have 0 here and can't be bought at all.
+   */
   unlockCost: number
   mods: StatMod
   /** Short "what makes them different" line, already written for a kid. */
@@ -88,6 +101,50 @@ const CHARACTER_LIST: readonly CharacterDef[] = [
     // guards her while she waddles about picking things up.
     mods: { pickupRadius: 34, xpMult: 0.14, maxHp: -6 },
     perk: 'Grabs hearts from further away and levels up quicker.',
+  },
+  {
+    id: 'pillow',
+    name: 'Pillow',
+    title: 'the Snuggly Lamb',
+    blurb: 'Made almost entirely of wool. Gives the best hugs in the meadow.',
+    texture: 'char-pillow',
+    startWeapon: 'cuddleAura',
+    unlockCost: 0,
+    mods: { maxHp: 24, armor: 1, moveSpeed: -8, areaMult: 0.08 },
+    perk: 'Soft, sturdy, and warm enough to hurt.',
+  },
+  {
+    id: 'twinkle',
+    name: 'Twinkle',
+    title: 'the Fairy Hamster',
+    blurb: 'Found a wand in a sunflower seed. Has been unbearable ever since.',
+    texture: 'char-twinkle',
+    startWeapon: 'pixieZap',
+    unlockCost: 0,
+    mods: { critChance: 0.08, hasteMult: 0.1, maxHp: -12, moveSpeed: 10 },
+    perk: 'Quick, lucky and sparkly, but small.',
+  },
+  {
+    id: 'jellybean',
+    name: 'Jellybean',
+    title: 'the Axolotl',
+    blurb: 'Always smiling. Nobody knows why. Possibly the jelly.',
+    texture: 'char-jellybean',
+    startWeapon: 'jellyPuddle',
+    unlockCost: 0,
+    mods: { regen: 0.6, durationMult: 0.15, areaMult: 0.08 },
+    perk: 'Heals slowly, and everything lingers longer.',
+  },
+  {
+    id: 'fluffy',
+    name: 'Fluffington',
+    title: 'the Reformed',
+    blurb: 'Used to be the grumpiest cat in the meadow. Now he just wants friends.',
+    texture: 'char-fluffy',
+    startWeapon: 'sparkleSwipe',
+    unlockCost: 0,
+    mods: { maxHp: 60, damageMult: 0.18, moveSpeed: -14, areaMult: 0.1, luck: 0.15 },
+    perk: 'Big, strong and royal. A little slow.',
   },
 ]
 

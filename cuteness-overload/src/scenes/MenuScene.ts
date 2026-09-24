@@ -1,22 +1,22 @@
 import Phaser from 'phaser'
-import { ART_SCALE } from '../art/textures'
+import { artScale, ART_SCALE } from '../art/textures'
 import { P } from '../art/palette'
 import { sfx } from '../audio/sfx'
 import { CHARACTERS, CHARACTER_IDS, type CharacterId } from '../data/characters'
-import { ENEMIES } from '../data/enemies'
-import { LEVELS, LEVEL_IDS, type LevelId } from '../data/levels'
+import { STICKERS, characterUnlockSticker } from '../data/stickers'
 import { WEAPONS } from '../data/weapons'
-import { isLevelUnlocked, loadSave, tryUnlockCharacter, writeSave, type SaveData } from '../game/save'
+import { awardStickers, isCharacterForSale, loadSave, tryUnlockCharacter, writeSave, type SaveData } from '../game/save'
 import { Button } from '../ui/Button'
 import { rebuildOnResize, uiScale } from '../ui/layout'
-import { drawMenuBackdrop, drawPanel, textStyle } from '../ui/theme'
+import { drawCard, drawMenuBackdrop, textStyle } from '../ui/theme'
 
 /** Title screen and friend-picker. */
 export class MenuScene extends Phaser.Scene {
   private save: SaveData = loadSave()
   private index = 0
-  private levelId: LevelId = 'meadow'
   private root!: Phaser.GameObjects.Container
+  /** Stickers handed out on arrival (back-filled from old records), to announce once. */
+  private arrivalStickers = 0
 
   constructor() {
     super('Menu')
@@ -24,15 +24,22 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     this.save = loadSave()
+    // A returning player's records may already earn stickers they've never
+    // seen (they didn't exist last time they played). Hand them out now.
+    const awarded = awardStickers(this.save)
+    this.arrivalStickers = awarded.earned.length
+    if (awarded.earned.length > 0) {
+      this.save = awarded.save
+      writeSave(this.save)
+    }
     this.index = Math.max(0, CHARACTER_IDS.indexOf(this.save.lastCharacter))
-    this.levelId = this.save.lastLevel
     this.root = this.add.container(0, 0)
     this.build()
     rebuildOnResize(this, () => this.rebuild())
     this.input.once(Phaser.Input.Events.POINTER_DOWN, () => sfx.unlock())
 
     // Keyboard shortcuts for playing at a desk: arrows to browse the roster,
-    // Enter or Space to start.
+    // Enter or Space to go.
     const kb = this.input.keyboard
     kb?.on('keydown-LEFT', () => this.step(-1))
     kb?.on('keydown-RIGHT', () => this.step(1))
@@ -60,7 +67,7 @@ export class MenuScene extends Phaser.Scene {
   /** What the big button does: play, or buy the friend you're looking at. */
   private confirm(): void {
     sfx.unlock()
-    if (this.save.unlocked.includes(this.selectedId)) this.startRun()
+    if (this.save.unlocked.includes(this.selectedId)) this.choose()
     else this.unlock(this.selectedId)
   }
 
@@ -77,7 +84,7 @@ export class MenuScene extends Phaser.Scene {
     drawMenuBackdrop(bg, w, h)
 
     // Drifting sparkles, purely for the vibe.
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 18; i++) {
       const star = add(
         this.add
           .image(Math.random() * w, Math.random() * h, 'fx-star')
@@ -117,18 +124,17 @@ export class MenuScene extends Phaser.Scene {
     })
 
     if (this.save.runs > 0) {
-      const best = `Best: ${formatTime(this.save.bestTimeSec)}  ·  ${this.save.bestKills} squished${
-        this.save.wins > 0 ? `  ·  ${this.save.wins}× 👑` : ''
-      }`
+      const crowns = Object.values(this.save.levelWins).reduce((sum, n) => sum + (n ?? 0), 0)
+      const best = `Best: ${formatTime(this.save.bestTimeSec)}  ·  ${this.save.bestKills} squished${crowns > 0 ? `  ·  ${crowns}× 👑` : ''}`
       add(
         this.add
-          .text(w / 2, 18 * s, best, textStyle({ size: 17 * s, color: P.lavender }))
+          .text(w / 2, 18 * s, best, textStyle({ size: 16 * s, color: P.lavender }))
           .setOrigin(0.5, 0),
       )
     }
 
     // ----------------------------------------------------------------- title
-    const titleY = h * 0.155
+    const titleY = h * 0.14
     const title = add(
       this.add
         .text(w / 2, titleY, 'Cuteness', textStyle({ size: 62 * s, color: P.pink, stroke: P.white, strokeWidth: 8 * s, bold: true }))
@@ -153,35 +159,39 @@ export class MenuScene extends Phaser.Scene {
     // anchored to the bottom edge, and the panel then centres itself in
     // whatever is left, so a tall portrait screen doesn't leave a hole in the
     // middle.
-    const btnW = Math.min(300 * s, w * 0.62)
-    const btnH = Math.min(66 * s, h * 0.11)
-    const shopH = btnH * 0.78
+    const btnW = Math.min(320 * s, w * 0.7)
+    const btnH = Math.min(66 * s, h * 0.1)
+    const smallH = btnH * 0.8
     const hintH = 24 * s
-    const shopY = h - hintH - shopH / 2 - 6 * s
-    const btnY = shopY - shopH / 2 - btnH / 2 - 12 * s
-    const levelRowH = 56 * s
-    const levelRowY = btnY - btnH / 2 - levelRowH / 2 - 10 * s
+    const smallY = h - hintH - smallH / 2 - 6 * s
+    const btnY = smallY - smallH / 2 - btnH / 2 - 12 * s
 
     // ------------------------------------------------------- character panel
     const def = CHARACTERS[this.selectedId]
     const unlocked = this.save.unlocked.includes(def.id)
-    const panelW = Math.min(w - 40 * s, 520 * s)
+    const panelW = Math.min(w - 80 * s, 540 * s)
     const panelX = w / 2 - panelW / 2
     const titleBottom = titleY + 84 * s
-    const panelSpace = levelRowY - levelRowH / 2 - 18 * s - titleBottom
+    const panelSpace = btnY - btnH / 2 - 40 * s - titleBottom
     // Clamped to the space actually left over: unclamped, a short screen grew the
-    // panel straight down through the level picker.
-    const panelH = Math.min(h * 0.4, 250 * s, Math.max(120 * s, panelSpace))
+    // panel straight down through the buttons.
+    // Taller in portrait, where there's room to spare below the title.
+    const panelH = Math.min(h * 0.42, (h > w ? 340 : 260) * s, Math.max(120 * s, panelSpace))
     const panelY = titleBottom + Math.max(0, (panelSpace - panelH) / 2)
     const panel = add(this.add.graphics())
-    drawPanel(panel, panelX, panelY, panelW, panelH, { fill: P.panel, edge: P.panelEdge })
+    drawCard(panel, panelX, panelY, panelW, panelH, { fill: P.panel, edge: unlocked ? P.panelEdge : P.grumpGrey })
 
+    // A soft spotlight behind the portrait.
+    const spot = add(this.add.graphics())
+    spot.fillStyle(unlocked ? P.pink : P.grumpGrey, 0.35)
+    spot.fillCircle(panelX + panelW * 0.21, panelY + panelH * 0.5, Math.min(panelW * 0.17, panelH * 0.38))
     const portrait = add(
       this.add
         .image(panelX + panelW * 0.21, panelY + panelH * 0.47, def.texture)
-        .setScale(ART_SCALE * Math.min(3.6 * s, (panelH * 0.5) / 22))
-        .setAlpha(unlocked ? 1 : 0.35),
+        .setScale(artScale(def.texture) * Math.min(3.6 * s, (panelH * 0.52) / 22))
+        .setAlpha(unlocked ? 1 : 0.4),
     )
+    if (!unlocked) portrait.setTint(0x9a90b0)
     this.tweens.add({
       targets: portrait,
       y: portrait.y - 6,
@@ -195,7 +205,7 @@ export class MenuScene extends Phaser.Scene {
     }
 
     const textX = panelX + panelW * 0.4
-    const textW = panelW * 0.55
+    const textW = panelW * 0.56
     add(
       this.add
         .text(textX, panelY + panelH * 0.16, def.name, textStyle({ size: 34 * s, color: P.purple, bold: true }))
@@ -203,12 +213,12 @@ export class MenuScene extends Phaser.Scene {
     )
     add(
       this.add
-        .text(textX, panelY + panelH * 0.32, def.title, textStyle({ size: 19 * s, color: P.inkSoft }))
+        .text(textX, panelY + panelH * 0.31, def.title, textStyle({ size: 18 * s, color: P.inkSoft }))
         .setOrigin(0, 0.5),
     )
     add(
       this.add
-        .text(textX, panelY + panelH * 0.52, def.perk, textStyle({ size: 18 * s, color: P.ink, wrap: textW, align: 'left' }))
+        .text(textX, panelY + panelH * 0.52, def.perk, textStyle({ size: 17 * s, color: P.ink, wrap: textW, align: 'left' }))
         .setOrigin(0, 0.5),
     )
     add(
@@ -217,7 +227,7 @@ export class MenuScene extends Phaser.Scene {
           textX,
           panelY + panelH * 0.8,
           `Starts with ${WEAPONS[def.startWeapon].icon} ${WEAPONS[def.startWeapon].name}`,
-          textStyle({ size: 17 * s, color: P.teal, wrap: textW, align: 'left' }),
+          textStyle({ size: 16 * s, color: P.teal, wrap: textW, align: 'left', bold: true }),
         )
         .setOrigin(0, 0.5),
     )
@@ -243,69 +253,13 @@ export class MenuScene extends Phaser.Scene {
       add(
         this.add
           .text(
-            w / 2 + (i - (CHARACTER_IDS.length - 1) / 2) * 22 * s,
+            w / 2 + (i - (CHARACTER_IDS.length - 1) / 2) * 20 * s,
             panelY + panelH + 18 * s,
             i === this.index ? '●' : owned ? '○' : '·',
             textStyle({ size: 20 * s, color: i === this.index ? P.pink : P.inkSoft }),
           )
           .setOrigin(0.5),
       )
-    })
-
-    // ------------------------------------------------------------ level picker
-    const pickerW = Math.min(w - 32 * s, 460 * s)
-    const cellW = (pickerW - 10 * s) / LEVEL_IDS.length
-    LEVEL_IDS.forEach((id, i) => {
-      const level = LEVELS[id]
-      const open = isLevelUnlocked(this.save, id)
-      const chosen = id === this.levelId
-      const cx = w / 2 - pickerW / 2 + cellW / 2 + i * (cellW + 10 * s)
-      const pill = add(this.add.container(cx, levelRowY))
-      const bg = this.add.graphics()
-      drawPanel(bg, -cellW / 2, -levelRowH / 2, cellW, levelRowH, {
-        fill: chosen ? P.lemon : P.nightSoft,
-        edge: chosen ? P.gold : P.inkSoft,
-        radius: 14 * s,
-        shadow: false,
-      })
-      pill.add(bg)
-      pill.add(
-        this.add
-          .text(
-            0,
-            -levelRowH * 0.14,
-            `${open ? level.icon : '🔒'} ${level.name}`,
-            textStyle({ size: Math.min(18 * s, cellW * 0.11), color: chosen ? P.ink : P.white, bold: true }),
-          )
-          .setOrigin(0.5),
-      )
-      pill.add(
-        this.add
-          .text(
-            0,
-            levelRowH * 0.24,
-            open ? level.blurb : `Beat ${ENEMIES[LEVELS[level.unlockedBy!].boss].name} to open this up!`,
-            textStyle({
-              size: Math.min(11 * s, cellW * 0.065),
-              color: chosen ? P.inkSoft : P.lavender,
-              wrap: cellW - 14 * s,
-            }),
-          )
-          .setOrigin(0.5),
-      )
-      if (open) {
-        pill.setSize(cellW, levelRowH)
-        pill.setInteractive(new Phaser.Geom.Rectangle(0, 0, cellW, levelRowH), Phaser.Geom.Rectangle.Contains)
-        pill.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => {
-          if (this.levelId === id) return
-          this.levelId = id
-          sfx.unlock()
-          sfx.play('tap')
-          this.rebuild()
-        })
-      } else {
-        pill.setAlpha(0.75)
-      }
     })
 
     if (unlocked) {
@@ -316,10 +270,10 @@ export class MenuScene extends Phaser.Scene {
           height: btnH,
           fill: P.pink,
           fontSize: 34 * s,
-          onClick: () => this.startRun(),
+          onClick: () => this.choose(),
         }),
       )
-    } else {
+    } else if (isCharacterForSale(def.id)) {
       const affordable = this.save.sprinkles >= def.unlockCost
       add(
         new Button(this, w / 2, btnY, {
@@ -332,26 +286,66 @@ export class MenuScene extends Phaser.Scene {
           onClick: () => this.unlock(def.id),
         }).setEnabled(affordable),
       )
+    } else {
+      // Friends that come off a sticker: say which one.
+      const sticker = characterUnlockSticker(def.id)
+      const sdef = sticker ? STICKERS[sticker] : null
+      add(
+        new Button(this, w / 2, btnY, {
+          label: sdef ? `${sdef.icon} ${sdef.name}` : 'Locked',
+          sub: sdef ? sdef.desc : '',
+          width: btnW * 1.1,
+          height: btnH,
+          fill: P.grumpGrey,
+          fontSize: 20 * s,
+          onClick: () => undefined,
+        }).setEnabled(false),
+      )
     }
 
+    const smallW = (btnW - 12 * s) / 2
     add(
-      new Button(this, w / 2, shopY, {
-        label: '🍬 Sprinkle Shop',
-        width: btnW,
-        height: shopH,
+      new Button(this, w / 2 - smallW / 2 - 6 * s, smallY, {
+        label: '🍬 Shop',
+        width: smallW,
+        height: smallH,
         fill: P.lavender,
-        fontSize: 22 * s,
+        fontSize: 21 * s,
         onClick: () => this.scene.start('Shop'),
       }),
     )
+    const newCount = this.save.newStickers.length
+    add(
+      new Button(this, w / 2 + smallW / 2 + 6 * s, smallY, {
+        label: '📖 Stickers',
+        width: smallW,
+        height: smallH,
+        fill: P.mint,
+        fontSize: 21 * s,
+        onClick: () => this.scene.start('StickerBook'),
+      }),
+    )
+    if (newCount > 0) {
+      const badgeX = w / 2 + smallW + 6 * s - 6 * s
+      const badgeY = smallY - smallH / 2 + 2 * s
+      const badge = add(this.add.graphics())
+      badge.fillStyle(P.pinkHot, 1)
+      badge.fillCircle(badgeX, badgeY, 13 * s)
+      badge.lineStyle(2.5 * s, P.white, 1)
+      badge.strokeCircle(badgeX, badgeY, 13 * s)
+      const label = add(this.add.text(badgeX, badgeY, `${newCount}`, textStyle({ size: 15 * s, color: P.white, bold: true })).setOrigin(0.5))
+      this.tweens.add({ targets: [label], scale: 1.2, duration: 500, yoyo: true, repeat: -1 })
+    }
 
     add(
       this.add
         .text(
           w / 2,
           h - 6 * s,
-          'Drag anywhere to move — attacking happens all by itself!',
-          textStyle({ size: 15 * s, color: P.lavender, wrap: w - 40 }),
+          this.arrivalStickers > 0
+            ? `✨ You earned ${this.arrivalStickers} sticker${this.arrivalStickers === 1 ? '' : 's'}! Open the Sticker Book! ✨`
+            : 'Drag anywhere to move — attacking happens all by itself!',
+          textStyle({ size: 15 * s, color: this.arrivalStickers > 0 ? P.lemon : P.lavender, wrap: w - 40, bold: this.arrivalStickers > 0 }),
         )
         .setOrigin(0.5, 1),
     )
@@ -366,10 +360,11 @@ export class MenuScene extends Phaser.Scene {
     this.rebuild()
   }
 
-  private startRun(): void {
-    this.save = { ...this.save, lastCharacter: this.selectedId, lastLevel: this.levelId }
+  /** Picks this friend and moves on to choosing where to play. */
+  private choose(): void {
+    this.save = { ...this.save, lastCharacter: this.selectedId }
     writeSave(this.save)
-    this.scene.start('Game', { characterId: this.selectedId, levelId: this.levelId })
+    this.scene.start('StageSelect', { characterId: this.selectedId })
   }
 }
 

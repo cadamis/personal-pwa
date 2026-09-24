@@ -41,6 +41,16 @@ export interface Stats {
   revives: number
   /** Level the run starts at. */
   startLevel: number
+  /** Multiplies how long lingering things last: turrets, spins, puddles, umbrellas. */
+  durationMult: number
+  /** Level-up rerolls per run. */
+  rerolls: number
+  /** Level-up "no thanks" banishes per run. */
+  banishes: number
+  /** Multiplies how many presents turn up on the floor. */
+  presentLuck: number
+  /** Better odds of a 3- or 5-prize treasure chest. */
+  chestLuck: number
 }
 
 /** An additive change to any subset of {@link Stats}. */
@@ -65,6 +75,11 @@ export function baseStats(): Stats {
     luck: 0,
     revives: 0,
     startLevel: 1,
+    durationMult: 1,
+    rerolls: 0,
+    banishes: 0,
+    presentLuck: 1,
+    chestLuck: 0,
   }
 }
 
@@ -96,6 +111,8 @@ export function clampStats(stats: Stats): Stats {
   stats.hasteMult = Math.min(stats.hasteMult, 4)
   stats.moveSpeed = Math.min(stats.moveSpeed, 420)
   stats.areaMult = Math.min(stats.areaMult, 3)
+  stats.durationMult = Math.min(stats.durationMult, 3)
+  stats.extraProjectiles = Math.min(stats.extraProjectiles, 6)
   return stats
 }
 
@@ -103,9 +120,13 @@ export function clampStats(stats: Stats): Stats {
  * XP needed to go from `level` to `level + 1`. Deliberately gentle early on —
  * the first card should land within the first few seconds, because waiting a
  * minute for your first choice is a miserable way to start a run.
+ *
+ * Tuned so a decent run is somewhere in the high thirties by the boss: enough
+ * level-ups to max a weapon *and* find its buddy passive, which is what lets
+ * the mid-run chests turn into evolutions.
  */
 export function xpToNext(level: number): number {
-  return Math.round(3 + level * 4 + level * level * 0.85)
+  return Math.round(4 + level * 3 + level * level * 0.42)
 }
 
 /**

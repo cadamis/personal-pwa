@@ -47,6 +47,8 @@ export class HudScene extends Phaser.Scene {
   private bossText?: Phaser.GameObjects.Text
   private banner?: Phaser.GameObjects.Text
   private weaponRow?: Phaser.GameObjects.Container
+  private passiveRow?: Phaser.GameObjects.Container
+  private statusText?: Phaser.GameObjects.Text
   private bossPointer?: Phaser.GameObjects.Container
   private bossPointerFace?: Phaser.GameObjects.Image
   private bossPointerArrow?: Phaser.GameObjects.Image
@@ -54,6 +56,8 @@ export class HudScene extends Phaser.Scene {
 
   private s = 1
   private weaponSignature = ''
+  private passiveSignature = ''
+  private lastStatus = ''
   private lastHp = ''
   private lastTime = ''
   private lastKills = ''
@@ -144,14 +148,22 @@ export class HudScene extends Phaser.Scene {
     )
     this.bossText = add(
       this.add
-        .text(w / 2, 96 * s, '', textStyle({ size: 15 * s, color: P.white, stroke: P.night, strokeWidth: 4 * s, bold: true }))
+        .text(w / 2, 112 * s, '', textStyle({ size: 15 * s, color: P.white, stroke: P.night, strokeWidth: 4 * s, bold: true }))
         .setOrigin(0.5, 0)
         .setDepth(802)
         .setVisible(false),
     )
 
-    this.weaponRow = add(this.add.container(XP_PAD * s + 4 * s, 76 * s).setDepth(802))
+    this.statusText = add(
+      this.add
+        .text(w / 2, 92 * s, '', textStyle({ size: 14 * s, color: P.lavender, stroke: P.night, strokeWidth: 4 * s, bold: true }))
+        .setOrigin(0.5, 0)
+        .setDepth(802),
+    )
+    this.weaponRow = add(this.add.container(XP_PAD * s + 4 * s, 78 * s).setDepth(802))
+    this.passiveRow = add(this.add.container(XP_PAD * s + 6 * s, 106 * s).setDepth(802))
     this.weaponSignature = ''
+    this.passiveSignature = ''
 
     this.banner = add(
       this.add
@@ -203,7 +215,7 @@ export class HudScene extends Phaser.Scene {
     })
 
     // Keep the stick out of the HUD strip now that it is taller.
-    if (this.stick) this.stick.deadTop = 96 * s
+    if (this.stick) this.stick.deadTop = 122 * s
 
     // Force a repaint of the cached text values after a rebuild.
     this.lastHp = ''
@@ -212,6 +224,7 @@ export class HudScene extends Phaser.Scene {
     this.lastSprinkles = ''
     this.lastLevel = ''
     this.lastXp = ''
+    this.lastStatus = ''
   }
 
   showBanner(message: string, color: number): void {
@@ -261,8 +274,9 @@ export class HudScene extends Phaser.Scene {
     this.setCached('lastSprinkles', `\u{1F36C} ${state.sprinkles}`, this.sprinkleText)
 
     if (state.boss) {
-      bossText.setVisible(true).setText(state.boss.name)
-      drawBar(bars, w * 0.2, 118 * s, w * 0.6, 14 * s, state.boss.frac, P.grumpRed, {
+      if (bossText.text !== state.boss.name) bossText.setText(state.boss.name)
+      if (!bossText.visible) bossText.setVisible(true)
+      drawBar(bars, w * 0.22, 132 * s, w * 0.56, 14 * s, state.boss.frac, P.grumpRed, {
         track: P.night,
         border: P.white,
       })
@@ -270,8 +284,23 @@ export class HudScene extends Phaser.Scene {
       bossText.setVisible(false)
     }
 
+    // One status line under the kill count: how long until the boss, or that
+    // you've beaten it and are in endless, plus a badge for Grumpier mode.
+    let status: string
+    if (state.endless) status = '♾️ Endless!'
+    else if (state.bossBeaten) status = '👑 Boss beaten!'
+    else if (state.timeSec >= state.bossTime) status = '👑 Boss fight!'
+    else status = `👑 in ${formatTime(Math.max(0, state.bossTime - state.timeSec))}`
+    if (state.grumpier) status = `😠 ${status}`
+    if (state.napLeft > 0) status = `😴 Nap time ${Math.ceil(state.napLeft / 1000)}`
+    if (status !== this.lastStatus && this.statusText) {
+      this.lastStatus = status
+      this.statusText.setText(status)
+    }
+
     this.syncBossPointer(state)
     this.syncWeaponRow(state)
+    this.syncPassiveRow(state)
   }
 
   /**
@@ -311,7 +340,7 @@ export class HudScene extends Phaser.Scene {
     const edge = BOSS_BADGE * s
     const left = edge
     const right = w - edge
-    const top = 118 * s // clear of the XP bar, HP bar and boss health bar
+    const top = 150 * s // clear of the XP bar, HP bar, loadout and boss health bar
     const bottom = h - edge
     const tx = dx > 0 ? (right - cx) / dx : dx < 0 ? (left - cx) / dx : Infinity
     const ty = dy > 0 ? (bottom - cy) / dy : dy < 0 ? (top - cy) / dy : Infinity
@@ -344,21 +373,49 @@ export class HudScene extends Phaser.Scene {
     const s = this.s
     state.weapons.forEach((weapon, i) => {
       const x = i * 40 * s
+      if (weapon.evolved) {
+        // Evolved weapons sit on a little golden disc.
+        const disc = this.add.graphics()
+        disc.fillStyle(P.gold, 0.55)
+        disc.fillCircle(x + 12 * s, 0, 15 * s)
+        row.add(disc)
+      }
       row.add(this.add.text(x, 0, weapon.icon, textStyle({ size: 25 * s })).setOrigin(0, 0.5))
+      const maxed = weapon.level >= weapon.max
       row.add(
         this.add
           .text(
             x + 27 * s,
             8 * s,
-            `${weapon.level}`,
+            weapon.evolved ? '★' : `${weapon.level}`,
             textStyle({
               size: 14 * s,
-              color: weapon.level >= weapon.max ? P.gold : P.white,
+              color: weapon.evolved ? P.pinkHot : maxed ? P.gold : P.white,
               stroke: P.night,
               strokeWidth: 3 * s,
               bold: true,
             }),
           )
+          .setOrigin(0, 0.5),
+      )
+    })
+  }
+
+  private syncPassiveRow(state: RunUiState): void {
+    const row = this.passiveRow
+    if (!row) return
+    const signature = state.passives.map((p) => `${p.icon}${p.level}`).join('')
+    if (signature === this.passiveSignature) return
+    this.passiveSignature = signature
+
+    row.removeAll(true)
+    const s = this.s
+    state.passives.forEach((passive, i) => {
+      const x = i * 32 * s
+      row.add(this.add.text(x, 0, passive.icon, textStyle({ size: 18 * s })).setOrigin(0, 0.5))
+      row.add(
+        this.add
+          .text(x + 19 * s, 6 * s, `${passive.level}`, textStyle({ size: 11 * s, color: passive.level >= passive.max ? P.gold : P.white, stroke: P.night, strokeWidth: 3 * s, bold: true }))
           .setOrigin(0, 0.5),
       )
     })

@@ -13,7 +13,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    buildTextures(this.textures)
+    buildTextures(this.textures, this.anims)
     sfx.setMuted(loadSave().muted)
     this.scene.start('Menu')
   }

@@ -8,10 +8,14 @@ import { HudScene } from './scenes/HudScene'
 import { LevelUpScene } from './scenes/LevelUpScene'
 import { PauseScene } from './scenes/PauseScene'
 import { ResultScene } from './scenes/ResultScene'
+import { StageSelectScene } from './scenes/StageSelectScene'
+import { StickerBookScene } from './scenes/StickerBookScene'
+import { ChestScene } from './scenes/ChestScene'
+import { VictoryScene } from './scenes/VictoryScene'
 import { cssHex } from './ui/theme'
 import { P } from './art/palette'
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: cssHex(P.night),
@@ -34,5 +38,21 @@ new Phaser.Game({
   render: { antialias: true },
   // Order matters: scenes later in this list render on top, so the HUD sits
   // above the game and the modal screens sit above the HUD.
-  scene: [BootScene, MenuScene, ShopScene, GameScene, HudScene, LevelUpScene, PauseScene, ResultScene],
+  scene: [
+    BootScene,
+    MenuScene,
+    StageSelectScene,
+    ShopScene,
+    StickerBookScene,
+    GameScene,
+    HudScene,
+    LevelUpScene,
+    ChestScene,
+    VictoryScene,
+    PauseScene,
+    ResultScene,
+  ],
 })
+
+// A handle for poking at a live run from the browser console while developing.
+if (import.meta.env.DEV) (window as unknown as { __game: Phaser.Game }).__game = game

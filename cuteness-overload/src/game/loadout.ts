@@ -6,7 +6,7 @@
 import { CHARACTERS, type CharacterId } from '../data/characters'
 import { METAS, type MetaId } from '../data/meta'
 import { PASSIVES, type PassiveId } from '../data/passives'
-import { maxWeaponLevel, type WeaponId } from '../data/weapons'
+import { WEAPONS, maxWeaponLevel, type EvolutionId, type WeaponId } from '../data/weapons'
 import { applyMods, baseStats, clampStats, modsUpToLevel, type Stats, type StatMod } from './stats'
 
 export interface OwnedWeapon {
@@ -81,4 +81,30 @@ export function grantPassive(inventory: Inventory, id: PassiveId): void {
   } else if (inventory.passives.length < MAX_PASSIVE_SLOTS) {
     inventory.passives.push({ id, level: 1 })
   }
+}
+
+/**
+ * Evolutions the inventory qualifies for right now: the base weapon is at its
+ * top level and its buddy passive is owned (at any level).
+ */
+export function evolvable(inventory: Inventory): EvolutionId[] {
+  const out: EvolutionId[] = []
+  for (const owned of inventory.weapons) {
+    const evo = WEAPONS[owned.id].evolution
+    if (!evo) continue
+    if (owned.level < maxWeaponLevel(owned.id)) continue
+    if (passiveLevelOf(inventory, evo.needs) === 0) continue
+    out.push(evo.into as EvolutionId)
+  }
+  return out
+}
+
+/** Swaps a base weapon for its evolution, in place, keeping its slot. */
+export function evolveWeapon(inventory: Inventory, into: EvolutionId): boolean {
+  const from = WEAPONS[into].evolvedFrom
+  const slot = inventory.weapons.find((w) => w.id === from)
+  if (!slot) return false
+  slot.id = into
+  slot.level = 1
+  return true
 }
